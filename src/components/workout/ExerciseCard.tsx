@@ -21,7 +21,6 @@ interface Props {
 }
 
 export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged }: Props) {
-  const [completedWarmups, setCompletedWarmups] = useState<Set<number>>(new Set())
   const [skipped, setSkipped] = useState(false)
   const [confirmSkip, setConfirmSkip] = useState(false)
   const [logMenu, setLogMenu] = useState<LogEntry | null>(null)
@@ -32,6 +31,8 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
   const flashPR = useWorkoutStore(s => s.flashPR)
 
   const workingSets = sessionLogs.filter(l => !l.isWarmup)
+  const warmupLogs = sessionLogs.filter(l => l.isWarmup)
+  const completedWarmupWeights = new Set(warmupLogs.map(l => l.weightKg))
   const isPR = prExerciseId === exercise.id
   const lastLogWeight = workingSets.at(-1)?.weightKg ?? te.plannedWeightKg
   const setsLeft = te.plannedSets - workingSets.length
@@ -165,15 +166,28 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
           <p className="text-xs text-[#888888] mb-2">Warmup</p>
           <div className="flex flex-wrap gap-2">
             {te.warmupWeights.map((w, i) => {
-              const done = completedWarmups.has(i)
+              const done = completedWarmupWeights.has(w)
               return (
                 <button
                   key={i}
-                  onClick={() => setCompletedWarmups(prev => {
-                    const next = new Set(prev)
-                    done ? next.delete(i) : next.add(i)
-                    return next
-                  })}
+                  onClick={async () => {
+                    if (done) {
+                      const log = warmupLogs.find(l => l.weightKg === w)
+                      if (log) await db.setLogs.delete(log.id!)
+                    } else {
+                      await db.setLogs.add({
+                        sessionId,
+                        exerciseId: exercise.id!,
+                        setNumber: i + 1,
+                        weightKg: w,
+                        reps: 5,
+                        isWarmup: true,
+                        isPR: false,
+                        loggedAt: new Date().toISOString(),
+                      })
+                    }
+                    onSetLogged()
+                  }}
                   className={cn(
                     'text-xs px-3 py-1.5 rounded-full border transition-colors',
                     done
