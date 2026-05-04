@@ -244,7 +244,7 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
                 onClick={() => setLogMenu(
                   logMenu?.logId === log.id ? null : { logId: log.id!, weight: log.weightKg, reps: log.reps }
                 )}
-                className="text-[#444444] p-1 -mr-1"
+                className="text-[#888888] p-1 -mr-1"
               >
                 <MoreHorizontal size={16} />
               </button>
