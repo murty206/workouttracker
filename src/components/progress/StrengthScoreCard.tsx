@@ -35,16 +35,29 @@ export function StrengthScoreCard() {
     'Barbell Row': 'Row',
   }
 
+  function levelLabel(total: number) {
+    if (total < 100) return { label: 'Beginner', color: '#888888' }
+    if (total < 200) return { label: 'Intermediate', color: '#3b82f6' }
+    if (total < 350) return { label: 'Advanced', color: '#22c55e' }
+    return { label: 'Elite', color: '#f97316' }
+  }
+
+  const level = levelLabel(score.total)
+
   return (
     <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Strength Score</p>
+        <div>
+          <p className="text-sm font-semibold">Strength Score</p>
+          <p className="text-xs text-[#888888]">Bench · Squat · OHP · Row</p>
+        </div>
         <span className="text-xs text-[#888888]">DOTS</span>
       </div>
 
       <div className="text-center">
         <p className="text-5xl font-bold text-[#f97316]">{score.total}</p>
-        <p className="text-xs text-[#888888] mt-1">total</p>
+        <p className="text-sm font-semibold mt-1" style={{ color: level.color }}>{level.label}</p>
+        <p className="text-xs text-[#888888] mt-0.5">normalized by bodyweight &amp; gender</p>
       </div>
 
       <div className="grid grid-cols-4 gap-2">
