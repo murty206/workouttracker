@@ -1,6 +1,6 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
-import { Trophy, SkipForward, X } from 'lucide-react'
+import { useState } from 'react'
+import { Trophy, SkipForward, X, MoreHorizontal } from 'lucide-react'
 import { db } from '@/lib/db'
 import { detectAndSavePR } from '@/lib/pr'
 import { useWorkoutStore } from '@/store/workoutStore'
@@ -26,7 +26,6 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
   const [confirmSkip, setConfirmSkip] = useState(false)
   const [logMenu, setLogMenu] = useState<LogEntry | null>(null)
   const [editingLog, setEditingLog] = useState<LogEntry | null>(null)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const prExerciseId = useWorkoutStore(s => s.prExerciseId)
   const startTimer = useWorkoutStore(s => s.startTimer)
@@ -41,19 +40,6 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
   const plateBreakdown = exercise.equipmentType === 'barbell' && te.plannedWeightKg
     ? plateBreakdownLabel(te.plannedWeightKg)
     : null
-
-  const startLongPress = useCallback((log: SetLog) => {
-    longPressTimer.current = setTimeout(() => {
-      setLogMenu({ logId: log.id!, weight: log.weightKg, reps: log.reps })
-    }, 500)
-  }, [])
-
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
 
   async function handleLogSet(weight: number | null, reps: number) {
     const setNumber = workingSets.length + 1
@@ -246,11 +232,7 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
           return (
             <div
               key={log.id}
-              onPointerDown={() => startLongPress(log)}
-              onPointerUp={cancelLongPress}
-              onPointerCancel={cancelLongPress}
-              onPointerLeave={cancelLongPress}
-              className="px-4 py-2.5 flex items-center gap-3 text-sm border-b border-[#2a2a2a]/50 select-none cursor-pointer"
+              className="px-4 py-2.5 flex items-center gap-3 text-sm border-b border-[#2a2a2a]/50"
             >
               <span className="w-6 text-center text-[#888888] text-xs">{i + 1}</span>
               <span className="flex-1 text-[#f5f5f5] tabular-nums">
@@ -258,6 +240,14 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
               </span>
               <span className="text-[#f5f5f5] tabular-nums">{log.reps} reps</span>
               {log.isPR && <Trophy size={14} className="text-[#22c55e]" />}
+              <button
+                onClick={() => setLogMenu(
+                  logMenu?.logId === log.id ? null : { logId: log.id!, weight: log.weightKg, reps: log.reps }
+                )}
+                className="text-[#444444] p-1 -mr-1"
+              >
+                <MoreHorizontal size={16} />
+              </button>
             </div>
           )
         })}
