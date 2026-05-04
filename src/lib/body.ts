@@ -1,4 +1,4 @@
-// US Navy body fat formula
+// Hodgdon-Beckett US Navy body fat formula
 export function navyBodyFat(
   gender: 'male' | 'female',
   heightCm: number,
@@ -7,10 +7,12 @@ export function navyBodyFat(
   hipCm?: number
 ): number {
   if (gender === 'male') {
-    return 86.010 * Math.log10(waistCm - neckCm) - 70.041 * Math.log10(heightCm) + 36.76
+    const density = 1.0324 - 0.19077 * Math.log10(waistCm - neckCm) + 0.15456 * Math.log10(heightCm)
+    return (495 / density) - 450
   } else {
     const hip = hipCm ?? waistCm
-    return 163.205 * Math.log10(waistCm + hip - neckCm) - 97.684 * Math.log10(heightCm) - 78.387
+    const density = 1.29579 - 0.35004 * Math.log10(waistCm + hip - neckCm) + 0.22100 * Math.log10(heightCm)
+    return (495 / density) - 450
   }
 }
 

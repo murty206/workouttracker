@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [bwWeight, setBwWeight] = useState('')
   const [bwWaist, setBwWaist] = useState('')
   const [bwNeck, setBwNeck] = useState('')
+  const [measureError, setMeasureError] = useState<string | null>(null)
 
   const gender = useLiveQuery(async () => {
     const pref = await db.userPrefs.get('gender')
@@ -96,12 +97,25 @@ export default function SettingsPage() {
   })()
 
   async function handleLogMeasurement() {
+    setMeasureError(null)
     const w = parseFloat(bwWeight)
-    if (isNaN(w) || w <= 0) return
+    if (isNaN(w) || w <= 0) {
+      setMeasureError('Enter a valid weight.')
+      return
+    }
 
     const waist = parseFloat(bwWaist)
     const neck = parseFloat(bwNeck)
-    const canBf = gender && heightCm && !isNaN(waist) && !isNaN(neck) && waist > 0 && neck > 0 && waist > neck
+    const hasCircumference = bwWaist !== '' || bwNeck !== ''
+
+    if (hasCircumference) {
+      if (isNaN(waist) || waist <= 0) { setMeasureError('Enter a valid waist measurement.'); return }
+      if (isNaN(neck) || neck <= 0) { setMeasureError('Enter a valid neck measurement.'); return }
+      if (waist <= neck) { setMeasureError('Waist must be larger than neck.'); return }
+      if (!heightCm) { setMeasureError('Set your height in Profile to compute body fat.'); return }
+    }
+
+    const canBf = hasCircumference && heightCm && gender
 
     const entry: BodyweightLog = {
       weightKg: w,
@@ -254,8 +268,11 @@ export default function SettingsPage() {
               Est. body fat: {bfPreview.toFixed(1)}% · lean mass: {leanMass(parseFloat(bwWeight) || 0, bfPreview).toFixed(1)} kg
             </p>
           )}
-          {!heightCm && (
+          {!heightCm && !bfPreview && (
             <p className="text-xs text-[#888888]">Set height above to compute body fat %</p>
+          )}
+          {measureError && (
+            <p className="text-xs text-[#ef4444]">{measureError}</p>
           )}
 
           <button
