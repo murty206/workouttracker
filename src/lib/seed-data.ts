@@ -69,7 +69,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "machine",
     "weightDisplay": "total",
-    "incrementKg": 2.5,
+    "incrementKg": 5,
     "isCustom": false,
     "alternativeExerciseNames": ["Negative Pull Ups", "Inverted Row", "Barbell Row"]
   },
@@ -169,7 +169,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "machine",
     "weightDisplay": "total",
-    "incrementKg": 2.5,
+    "incrementKg": 5,
     "isCustom": false,
     "alternativeExerciseNames": ["Bench Press", "Push-Up"]
   },

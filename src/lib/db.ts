@@ -41,6 +41,14 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(3).stores({}).upgrade(async tx => {
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        if (ex.equipmentType === 'machine') {
+          ex.incrementKg = 5
+        }
+      })
+    })
   }
 }
 
