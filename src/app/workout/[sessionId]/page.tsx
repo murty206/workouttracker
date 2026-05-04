@@ -31,13 +31,14 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
   const restSeconds = useWorkoutStore(s => s.restTimerSeconds)
 
   useEffect(() => {
+    if (showSummary) return
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [])
+  }, [showSummary])
 
   useEffect(() => {
     async function load() {
