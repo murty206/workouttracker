@@ -2,13 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Dumbbell, SkipForward, Scale, Pencil } from 'lucide-react'
+import { Dumbbell, SkipForward, Pencil } from 'lucide-react'
 import { db } from '@/lib/db'
 import Link from 'next/link'
 import { getTodaysTemplate, getProgramProgress, startSession, skipSession, getInProgressSession } from '@/lib/program'
 import { formatWeight } from '@/lib/weight'
 import type { WorkoutTemplate, TemplateExercise, Exercise } from '@/types'
-import { BodyweightModal } from '@/components/today/BodyweightModal'
 import { ProgramCompleteScreen } from '@/components/today/ProgramCompleteScreen'
 
 interface TemplateWithExercises {
@@ -21,7 +20,6 @@ export default function TodayPage() {
   const [data, setData] = useState<TemplateWithExercises | null>(null)
   const [progress, setProgress] = useState<Awaited<ReturnType<typeof getProgramProgress>> | null>(null)
   const [isComplete, setIsComplete] = useState(false)
-  const [showBodyweight, setShowBodyweight] = useState(false)
   const [starting, setStarting] = useState(false)
   const [inProgressId, setInProgressId] = useState<number | null>(null)
 
@@ -82,18 +80,9 @@ export default function TodayPage() {
     <div className="py-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[#888888] text-sm">{weekLabel}</p>
-            <h1 className="text-2xl font-bold">{sessionLabel}</h1>
-          </div>
-          <button
-            onClick={() => setShowBodyweight(true)}
-            className="flex items-center gap-1.5 text-[#888888] text-sm border border-[#2a2a2a] rounded-full px-3 py-1.5 hover:border-[#f97316] hover:text-[#f97316] transition-colors"
-          >
-            <Scale size={14} />
-            Log weight
-          </button>
+        <div>
+          <p className="text-[#888888] text-sm">{weekLabel}</p>
+          <h1 className="text-2xl font-bold">{sessionLabel}</h1>
         </div>
 
         {/* Progress bar */}
@@ -163,7 +152,6 @@ export default function TodayPage() {
         )}
       </div>
 
-      <BodyweightModal open={showBodyweight} onClose={() => setShowBodyweight(false)} />
     </div>
   )
 }

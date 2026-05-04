@@ -3,8 +3,10 @@ import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { exportAll, importAll } from '@/lib/backup'
+import { navyBodyFat, leanMass } from '@/lib/body'
 import { AlertTriangle, Download, Upload, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import type { BodyweightLog } from '@/types'
 
 async function saveRestDefault(key: string, value: number) {
   if (value > 0) await db.userPrefs.put({ key, value: String(value) })
@@ -18,9 +20,18 @@ export default function SettingsPage() {
   const [pendingFile, setPendingFile] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [bwWeight, setBwWeight] = useState('')
+  const [bwWaist, setBwWaist] = useState('')
+  const [bwNeck, setBwNeck] = useState('')
+
   const gender = useLiveQuery(async () => {
     const pref = await db.userPrefs.get('gender')
     return (pref?.value ?? 'male') as 'male' | 'female'
+  }, [])
+
+  const heightCm = useLiveQuery(async () => {
+    const pref = await db.userPrefs.get('height_cm')
+    return pref ? Number(pref.value) : null
   }, [])
 
   const restBarbell = useLiveQuery(async () => {
@@ -31,6 +42,10 @@ export default function SettingsPage() {
   const restOther = useLiveQuery(async () => {
     const pref = await db.userPrefs.get('rest_other')
     return Number(pref?.value ?? 60)
+  }, [])
+
+  const lastMeasurement = useLiveQuery(async () => {
+    return db.bodyweightLogs.orderBy('loggedAt').last()
   }, [])
 
   async function handleReset() {
@@ -68,32 +83,188 @@ export default function SettingsPage() {
     await db.userPrefs.put({ key: 'gender', value })
   }
 
+  async function saveHeight(h: number) {
+    if (h > 0 && h < 300) await db.userPrefs.put({ key: 'height_cm', value: String(h) })
+  }
+
+  const bfPreview = (() => {
+    if (!gender || !heightCm) return null
+    const w = parseFloat(bwWaist)
+    const n = parseFloat(bwNeck)
+    if (isNaN(w) || isNaN(n) || w <= 0 || n <= 0 || w <= n) return null
+    try { return navyBodyFat(gender, heightCm, w, n) } catch { return null }
+  })()
+
+  async function handleLogMeasurement() {
+    const w = parseFloat(bwWeight)
+    if (isNaN(w) || w <= 0) return
+
+    const waist = parseFloat(bwWaist)
+    const neck = parseFloat(bwNeck)
+    const canBf = gender && heightCm && !isNaN(waist) && !isNaN(neck) && waist > 0 && neck > 0 && waist > neck
+
+    const entry: BodyweightLog = {
+      weightKg: w,
+      loggedAt: new Date().toISOString().split('T')[0],
+    }
+
+    if (canBf) {
+      const bf = Math.round(navyBodyFat(gender!, heightCm!, waist, neck) * 10) / 10
+      entry.waistCm = waist
+      entry.neckCm = neck
+      entry.bodyFatPct = bf
+      entry.leanMassKg = Math.round(leanMass(w, bf) * 10) / 10
+    }
+
+    await db.bodyweightLogs.add(entry)
+    setBwWeight('')
+    setBwWaist('')
+    setBwNeck('')
+  }
+
   return (
     <div className="py-6 space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* Gender */}
+      {/* Profile */}
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
         <div className="px-4 py-3 border-b border-[#2a2a2a]">
           <p className="text-xs text-[#888888] uppercase tracking-wider">Profile</p>
         </div>
-        <div className="px-4 py-4 flex items-center justify-between">
-          <p className="text-sm font-medium">Gender</p>
-          <div className="flex gap-2">
-            {(['male', 'female'] as const).map(g => (
-              <button
-                key={g}
-                onClick={() => handleGenderChange(g)}
-                className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                  gender === g
-                    ? 'bg-[#f97316] text-white'
-                    : 'bg-[#242424] text-[#888888]'
-                }`}
-              >
-                {g === 'male' ? 'Male' : 'Female'}
-              </button>
-            ))}
+        <div className="divide-y divide-[#2a2a2a]">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <p className="text-sm font-medium">Gender</p>
+            <div className="flex gap-2">
+              {(['male', 'female'] as const).map(g => (
+                <button
+                  key={g}
+                  onClick={() => handleGenderChange(g)}
+                  className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                    gender === g
+                      ? 'bg-[#f97316] text-white'
+                      : 'bg-[#242424] text-[#888888]'
+                  }`}
+                >
+                  {g === 'male' ? 'Male' : 'Female'}
+                </button>
+              ))}
+            </div>
           </div>
+          <div className="px-4 py-4 flex items-center justify-between">
+            <p className="text-sm font-medium">Height</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                defaultValue={heightCm ?? ''}
+                key={heightCm ?? 'empty'}
+                onBlur={e => saveHeight(parseInt(e.target.value))}
+                onFocus={e => e.target.select()}
+                placeholder="175"
+                className="w-16 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+              />
+              <span className="text-xs text-[#888888]">cm</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Log Measurements */}
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a2a2a]">
+          <p className="text-xs text-[#888888] uppercase tracking-wider">Log Measurements</p>
+        </div>
+
+        {lastMeasurement && (
+          <div className="px-4 py-3 border-b border-[#2a2a2a]">
+            <p className="text-xs text-[#888888]">
+              Last logged:{' '}
+              {new Date(lastMeasurement.loggedAt).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric',
+              })}
+            </p>
+            <p className="text-sm mt-0.5 text-[#f5f5f5]">
+              {lastMeasurement.weightKg} kg
+              {lastMeasurement.bodyFatPct !== undefined && (
+                <span className="text-[#888888]">
+                  {' '}· {lastMeasurement.bodyFatPct.toFixed(1)}% fat · {lastMeasurement.leanMassKg?.toFixed(1)} kg lean
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
+        <div className="px-4 py-4 space-y-3">
+          {/* Weight */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-xs text-[#888888] mb-1.5">Weight</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={bwWeight}
+                  onChange={e => setBwWeight(e.target.value)}
+                  onFocus={e => e.target.select()}
+                  placeholder="78.5"
+                  className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-3 py-2 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+                />
+                <span className="text-xs text-[#888888] w-5">kg</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Waist + Neck */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-[#888888] mb-1.5">Waist</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={bwWaist}
+                  onChange={e => setBwWaist(e.target.value)}
+                  onFocus={e => e.target.select()}
+                  placeholder="85"
+                  className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-2 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+                />
+                <span className="text-xs text-[#888888]">cm</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-[#888888] mb-1.5">Neck</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={bwNeck}
+                  onChange={e => setBwNeck(e.target.value)}
+                  onFocus={e => e.target.select()}
+                  placeholder="38"
+                  className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-2 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+                />
+                <span className="text-xs text-[#888888]">cm</span>
+              </div>
+            </div>
+          </div>
+
+          {/* BF preview */}
+          {bfPreview !== null && (
+            <p className="text-xs text-[#22c55e]">
+              Est. body fat: {bfPreview.toFixed(1)}% · lean mass: {leanMass(parseFloat(bwWeight) || 0, bfPreview).toFixed(1)} kg
+            </p>
+          )}
+          {!heightCm && (
+            <p className="text-xs text-[#888888]">Set height above to compute body fat %</p>
+          )}
+
+          <button
+            onClick={handleLogMeasurement}
+            disabled={!bwWeight || parseFloat(bwWeight) <= 0}
+            className="w-full bg-[#f97316] text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-40"
+          >
+            Log
+          </button>
         </div>
       </div>
 

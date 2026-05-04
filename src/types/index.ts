@@ -93,5 +93,9 @@ export interface PersonalRecord {
 export interface BodyweightLog {
   id?: number
   weightKg: number
+  waistCm?: number
+  neckCm?: number
+  bodyFatPct?: number
+  leanMassKg?: number
   loggedAt: string
 }
