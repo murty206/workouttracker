@@ -5,6 +5,10 @@ import { db } from '@/lib/db'
 import { exportAll, importAll } from '@/lib/backup'
 import { AlertTriangle, Download, Upload } from 'lucide-react'
 
+async function saveRestDefault(key: string, value: number) {
+  if (value > 0) await db.userPrefs.put({ key, value: String(value) })
+}
+
 export default function SettingsPage() {
   const [confirming, setConfirming] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -16,6 +20,16 @@ export default function SettingsPage() {
   const gender = useLiveQuery(async () => {
     const pref = await db.userPrefs.get('gender')
     return (pref?.value ?? 'male') as 'male' | 'female'
+  }, [])
+
+  const restBarbell = useLiveQuery(async () => {
+    const pref = await db.userPrefs.get('rest_barbell')
+    return Number(pref?.value ?? 90)
+  }, [])
+
+  const restOther = useLiveQuery(async () => {
+    const pref = await db.userPrefs.get('rest_other')
+    return Number(pref?.value ?? 60)
   }, [])
 
   async function handleReset() {
@@ -80,6 +94,52 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Rest Timer */}
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a2a2a]">
+          <p className="text-xs text-[#888888] uppercase tracking-wider">Rest Timer Defaults</p>
+        </div>
+        <div className="divide-y divide-[#2a2a2a]">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Barbell / compounds</p>
+              <p className="text-xs text-[#888888] mt-0.5">Bench, Squat, OHP, Row</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                defaultValue={restBarbell}
+                key={restBarbell}
+                onBlur={e => saveRestDefault('rest_barbell', parseInt(e.target.value))}
+                className="w-16 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+              />
+              <span className="text-xs text-[#888888]">sec</span>
+            </div>
+          </div>
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Isolations / accessories</p>
+              <p className="text-xs text-[#888888] mt-0.5">Dumbbells, machines, cables</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                defaultValue={restOther}
+                key={restOther}
+                onBlur={e => saveRestDefault('rest_other', parseInt(e.target.value))}
+                className="w-16 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#2a2a2a] outline-none focus:border-[#f97316]"
+              />
+              <span className="text-xs text-[#888888]">sec</span>
+            </div>
+          </div>
+        </div>
+        <p className="px-4 py-2.5 text-xs text-[#888888] border-t border-[#2a2a2a]">
+          Fine-tune per exercise in the Exercises tab
+        </p>
       </div>
 
       {/* Backup */}

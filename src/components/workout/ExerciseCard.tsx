@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
-import { ChevronDown, ChevronUp, Trophy, SkipForward, X } from 'lucide-react'
+import { Trophy, SkipForward, X } from 'lucide-react'
 import { db } from '@/lib/db'
 import { detectAndSavePR } from '@/lib/pr'
 import { useWorkoutStore } from '@/store/workoutStore'
@@ -21,7 +21,6 @@ interface Props {
 }
 
 export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged }: Props) {
-  const [showWarmup, setShowWarmup] = useState(false)
   const [completedWarmups, setCompletedWarmups] = useState<Set<number>>(new Set())
   const [skipped, setSkipped] = useState(false)
   const [confirmSkip, setConfirmSkip] = useState(false)
@@ -172,21 +171,12 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
           )}
         </div>
 
-        {/* Warmup toggle */}
-        {te.warmupWeights.length > 0 && (
-          <button
-            onClick={() => setShowWarmup(!showWarmup)}
-            className="flex items-center gap-1 text-xs text-[#888888] mt-2"
-          >
-            {showWarmup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Warmup ({te.warmupWeights.length} sets)
-          </button>
-        )}
       </div>
 
       {/* Warmup checklist */}
-      {showWarmup && (
+      {te.warmupWeights.length > 0 && (
         <div className="px-4 pb-3 border-t border-[#2a2a2a] pt-3">
+          <p className="text-xs text-[#888888] mb-2">Warmup</p>
           <div className="flex flex-wrap gap-2">
             {te.warmupWeights.map((w, i) => {
               const done = completedWarmups.has(i)
