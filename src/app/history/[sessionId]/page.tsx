@@ -217,6 +217,7 @@ function InlineEditRow({
         <input
           type="number"
           inputMode="decimal"
+          onFocus={e => e.target.select()}
           value={weight}
           onChange={e => setWeight(e.target.value)}
           className="w-20 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
@@ -225,6 +226,7 @@ function InlineEditRow({
       <input
         type="number"
         inputMode="numeric"
+          onFocus={e => e.target.select()}
         value={reps}
         onChange={e => setReps(e.target.value)}
         className="w-14 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"

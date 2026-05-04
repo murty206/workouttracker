@@ -55,6 +55,7 @@ export function SetRow({ setNumber, exercise, defaultWeight, defaultReps, onLog 
               inputMode="decimal"
               value={weight}
               onChange={e => setWeight(e.target.value)}
+              onFocus={e => e.target.select()}
               className="w-full bg-[#1a1a1a] text-[#f5f5f5] text-center text-base font-semibold rounded-lg px-2 py-1.5 border border-[#2a2a2a] focus:border-[#f97316] outline-none tabular-nums"
             />
           </div>
@@ -81,6 +82,7 @@ export function SetRow({ setNumber, exercise, defaultWeight, defaultReps, onLog 
           inputMode="numeric"
           value={reps}
           onChange={e => setReps(e.target.value)}
+          onFocus={e => e.target.select()}
           className="w-12 bg-[#1a1a1a] text-[#f5f5f5] text-center text-base font-semibold rounded-lg px-1 py-1.5 border border-[#2a2a2a] focus:border-[#f97316] outline-none tabular-nums"
         />
         <button
