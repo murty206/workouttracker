@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { exportAll, importAll } from '@/lib/backup'
 import { navyBodyFat, leanMass } from '@/lib/body'
-import { AlertTriangle, Download, Upload, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Download, Upload, ChevronRight, MoreHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import type { BodyweightLog } from '@/types'
 
@@ -24,6 +24,8 @@ export default function SettingsPage() {
   const [bwWaist, setBwWaist] = useState('')
   const [bwNeck, setBwNeck] = useState('')
   const [measureError, setMeasureError] = useState<string | null>(null)
+  const [logMenu, setLogMenu] = useState<number | null>(null)
+  const [editingLog, setEditingLog] = useState<number | null>(null)
 
   const gender = useLiveQuery(async () => {
     const pref = await db.userPrefs.get('gender')
@@ -45,9 +47,12 @@ export default function SettingsPage() {
     return Number(pref?.value ?? 60)
   }, [])
 
-  const lastMeasurement = useLiveQuery(async () => {
-    return db.bodyweightLogs.orderBy('loggedAt').last()
+  const allLogs = useLiveQuery(async () => {
+    const logs = await db.bodyweightLogs.orderBy('loggedAt').toArray()
+    return logs.reverse()
   }, [])
+
+  const lastMeasurement = allLogs?.[0]
 
   async function handleReset() {
     setResetting(true)
@@ -134,6 +139,38 @@ export default function SettingsPage() {
     setBwWeight('')
     setBwWaist('')
     setBwNeck('')
+  }
+
+  async function handleDeleteLog(id: number) {
+    await db.bodyweightLogs.delete(id)
+    setLogMenu(null)
+  }
+
+  async function handleEditLog(id: number, weight: string, waist: string, neck: string) {
+    const w = parseFloat(weight)
+    if (isNaN(w) || w <= 0) return
+
+    const ws = parseFloat(waist)
+    const nc = parseFloat(neck)
+    const hasCircumference = waist !== '' && neck !== ''
+
+    const update: Partial<BodyweightLog> = { weightKg: w }
+
+    if (hasCircumference && !isNaN(ws) && !isNaN(nc) && ws > nc && heightCm && gender) {
+      const bf = Math.round(navyBodyFat(gender, heightCm, ws, nc) * 10) / 10
+      update.waistCm = ws
+      update.neckCm = nc
+      update.bodyFatPct = bf
+      update.leanMassKg = Math.round(leanMass(w, bf) * 10) / 10
+    } else {
+      update.waistCm = undefined
+      update.neckCm = undefined
+      update.bodyFatPct = undefined
+      update.leanMassKg = undefined
+    }
+
+    await db.bodyweightLogs.update(id, update)
+    setEditingLog(null)
   }
 
   return (
@@ -262,7 +299,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* BF preview */}
           {bfPreview !== null && (
             <p className="text-xs text-[#22c55e]">
               Est. body fat: {bfPreview.toFixed(1)}% · lean mass: {leanMass(parseFloat(bwWeight) || 0, bfPreview).toFixed(1)} kg
@@ -283,6 +319,70 @@ export default function SettingsPage() {
             Log
           </button>
         </div>
+
+        {/* Past entries */}
+        {allLogs && allLogs.length > 0 && (
+          <div className="border-t border-[#2a2a2a]">
+            <div className="divide-y divide-[#2a2a2a]/50">
+              {allLogs.map(log => (
+                <div key={log.id}>
+                  {/* Action menu */}
+                  {logMenu === log.id && (
+                    <div className="px-4 py-2.5 bg-[#242424] flex items-center justify-between gap-2">
+                      <p className="text-xs text-[#888888] flex-1 truncate">
+                        {log.weightKg} kg
+                        {log.bodyFatPct !== undefined ? ` · ${log.bodyFatPct.toFixed(1)}% fat` : ''}
+                      </p>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => { setEditingLog(log.id!); setLogMenu(null) }}
+                          className="text-xs bg-[#f97316] text-white px-3 py-1 rounded-lg"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLog(log.id!)}
+                          className="text-xs bg-[#ef4444] text-white px-3 py-1 rounded-lg"
+                        >
+                          Delete
+                        </button>
+                        <button onClick={() => setLogMenu(null)} className="text-[#888888] px-1">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {editingLog === log.id ? (
+                    <MeasurementEditRow
+                      log={log}
+                      onSave={(w, ws, nc) => handleEditLog(log.id!, w, ws, nc)}
+                      onCancel={() => setEditingLog(null)}
+                    />
+                  ) : (
+                    <div className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                      <span className="flex-1 text-[#888888] text-xs">
+                        {new Date(log.loggedAt).toLocaleDateString('en-GB', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        })}
+                      </span>
+                      <span className="tabular-nums">{log.weightKg} kg</span>
+                      {log.bodyFatPct !== undefined && (
+                        <span className="tabular-nums text-[#888888] text-xs">{log.bodyFatPct.toFixed(1)}% fat</span>
+                      )}
+                      <button
+                        onClick={() => setLogMenu(logMenu === log.id ? null : log.id!)}
+                        className="text-[#888888] p-1 -mr-1"
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Rest Timer */}
@@ -426,6 +526,80 @@ export default function SettingsPage() {
       <div className="text-center text-xs text-[#888888] pt-4">
         <p>Workout Tracker</p>
         <p className="mt-1">Data stored locally on this device</p>
+      </div>
+    </div>
+  )
+}
+
+function MeasurementEditRow({
+  log,
+  onSave,
+  onCancel,
+}: {
+  log: BodyweightLog
+  onSave: (weight: string, waist: string, neck: string) => void
+  onCancel: () => void
+}) {
+  const [weight, setWeight] = useState(log.weightKg.toString())
+  const [waist, setWaist] = useState(log.waistCm?.toString() ?? '')
+  const [neck, setNeck] = useState(log.neckCm?.toString() ?? '')
+
+  return (
+    <div className="px-3 py-2.5 space-y-2 bg-[#1f1f1f] border-b border-[#2a2a2a]/50">
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <p className="text-xs text-[#888888] mb-1">Weight</p>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={weight}
+              onChange={e => setWeight(e.target.value)}
+              onFocus={e => e.target.select()}
+              className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
+            />
+            <span className="text-xs text-[#888888]">kg</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-[#888888] mb-1">Waist</p>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={waist}
+              onChange={e => setWaist(e.target.value)}
+              onFocus={e => e.target.select()}
+              className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
+            />
+            <span className="text-xs text-[#888888]">cm</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-[#888888] mb-1">Neck</p>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={neck}
+              onChange={e => setNeck(e.target.value)}
+              onFocus={e => e.target.select()}
+              className="flex-1 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
+            />
+            <span className="text-xs text-[#888888]">cm</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onSave(weight, waist, neck)}
+          className="flex-1 bg-[#f97316] text-white text-xs font-semibold py-2 rounded-lg"
+        >
+          Save
+        </button>
+        <button onClick={onCancel} className="text-[#888888] px-2">
+          <X size={16} />
+        </button>
       </div>
     </div>
   )
