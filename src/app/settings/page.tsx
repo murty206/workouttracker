@@ -3,7 +3,8 @@ import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { exportAll, importAll } from '@/lib/backup'
-import { AlertTriangle, Download, Upload } from 'lucide-react'
+import { AlertTriangle, Download, Upload, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 
 async function saveRestDefault(key: string, value: number) {
   if (value > 0) await db.userPrefs.put({ key, value: String(value) })
@@ -137,9 +138,10 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-        <p className="px-4 py-2.5 text-xs text-[#888888] border-t border-[#2a2a2a]">
-          Fine-tune per exercise in the Exercises tab
-        </p>
+        <Link href="/exercises" className="px-4 py-2.5 flex items-center justify-between border-t border-[#2a2a2a]">
+          <p className="text-xs text-[#888888]">Fine-tune per exercise</p>
+          <ChevronRight size={14} className="text-[#444444]" />
+        </Link>
       </div>
 
       {/* Backup */}
