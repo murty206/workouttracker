@@ -5,7 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Dumbbell, SkipForward, Scale, Pencil } from 'lucide-react'
 import { db } from '@/lib/db'
 import Link from 'next/link'
-import { getTodaysTemplate, getProgramProgress, startSession, skipSession } from '@/lib/program'
+import { getTodaysTemplate, getProgramProgress, startSession, skipSession, getInProgressSession } from '@/lib/program'
 import { formatWeight } from '@/lib/weight'
 import type { WorkoutTemplate, TemplateExercise, Exercise } from '@/types'
 import { BodyweightModal } from '@/components/today/BodyweightModal'
@@ -23,12 +23,16 @@ export default function TodayPage() {
   const [isComplete, setIsComplete] = useState(false)
   const [showBodyweight, setShowBodyweight] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [inProgressId, setInProgressId] = useState<number | null>(null)
 
   const sessions = useLiveQuery(() => db.sessions.toArray(), [])
   const programCount = useLiveQuery(() => db.programs.count(), [])
 
   useEffect(() => {
     async function load() {
+      const inProgress = await getInProgressSession()
+      setInProgressId(inProgress?.id ?? null)
+
       const prog = await getProgramProgress()
       setProgress(prog)
       setIsComplete(prog.isComplete)
@@ -53,6 +57,10 @@ export default function TodayPage() {
   }, [sessions, programCount])
 
   async function handleStart() {
+    if (inProgressId) {
+      router.push(`/workout/${inProgressId}`)
+      return
+    }
     if (!data || !progress) return
     setStarting(true)
     const sessionId = await startSession(data.template.id!, progress.weekNumber, progress.workoutLabel)
@@ -137,11 +145,11 @@ export default function TodayPage() {
       <div className="space-y-3">
         <button
           onClick={handleStart}
-          disabled={!data || starting}
+          disabled={!inProgressId && (!data || starting)}
           className="w-full bg-[#f97316] text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform text-lg"
         >
           <Dumbbell size={22} />
-          {starting ? 'Starting…' : 'Start Workout'}
+          {inProgressId ? 'Resume Workout' : starting ? 'Starting…' : 'Start Workout'}
         </button>
 
         {data && (
