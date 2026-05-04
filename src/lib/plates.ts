@@ -1,4 +1,4 @@
-const AVAILABLE_PLATES = [25, 20, 15, 10, 5, 2.5, 1.25]
+const AVAILABLE_PLATES = [25, 20, 15, 10, 5, 2.5]
 
 export function plateMath(perSideKg: number): number[] {
   const result: number[] = []
