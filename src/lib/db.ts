@@ -49,6 +49,19 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(4).stores({}).upgrade(async tx => {
+      // Round machine exercise planned weights to nearest 5 kg (floor)
+      const machineExercises = await tx.table('exercises')
+        .filter((ex: Exercise) => ex.equipmentType === 'machine')
+        .toArray()
+      const machineIds = new Set(machineExercises.map((ex: Exercise) => ex.id))
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (machineIds.has(te.exerciseId) && te.plannedWeightKg !== null) {
+          te.plannedWeightKg = Math.floor(te.plannedWeightKg / 5) * 5
+        }
+      })
+    })
   }
 }
 

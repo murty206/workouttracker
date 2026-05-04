@@ -266,7 +266,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -389,7 +389,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -458,7 +458,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -581,7 +581,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -650,7 +650,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -773,7 +773,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -842,7 +842,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -965,7 +965,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1034,7 +1034,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1157,7 +1157,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1226,7 +1226,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1349,7 +1349,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1418,7 +1418,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1541,7 +1541,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1610,7 +1610,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1733,7 +1733,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1802,7 +1802,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1925,7 +1925,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -1994,7 +1994,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -2117,7 +2117,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -2186,7 +2186,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -2309,7 +2309,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -2378,7 +2378,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Lat Pulldown",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 32.5,
+            "plannedWeightKg": 30,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
@@ -2501,7 +2501,7 @@ export const SEED_WEEKS: SeedWeek[] = [
             "exerciseName": "Chest Fly Machine",
             "plannedSets": 3,
             "plannedReps": "10-14",
-            "plannedWeightKg": 27.5,
+            "plannedWeightKg": 25,
             "warmupWeights": [],
             "orderInWorkout": 3
           },
