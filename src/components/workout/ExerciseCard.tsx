@@ -1,0 +1,338 @@
+'use client'
+import { useState, useRef, useCallback } from 'react'
+import { ChevronDown, ChevronUp, Trophy, SkipForward, X } from 'lucide-react'
+import { db } from '@/lib/db'
+import { detectAndSavePR } from '@/lib/pr'
+import { useWorkoutStore } from '@/store/workoutStore'
+import { formatWeight, weightLabel } from '@/lib/weight'
+import { plateBreakdownLabel } from '@/lib/plates'
+import { cn } from '@/lib/utils'
+import type { TemplateExercise, Exercise, SetLog } from '@/types'
+import { SetRow } from './SetRow'
+
+type LogEntry = { logId: number; weight: number | null; reps: number }
+
+interface Props {
+  te: TemplateExercise
+  exercise: Exercise
+  sessionLogs: SetLog[]
+  sessionId: number
+  onSetLogged: () => void
+}
+
+export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged }: Props) {
+  const [showWarmup, setShowWarmup] = useState(false)
+  const [completedWarmups, setCompletedWarmups] = useState<Set<number>>(new Set())
+  const [skipped, setSkipped] = useState(false)
+  const [confirmSkip, setConfirmSkip] = useState(false)
+  const [logMenu, setLogMenu] = useState<LogEntry | null>(null)
+  const [editingLog, setEditingLog] = useState<LogEntry | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const prExerciseId = useWorkoutStore(s => s.prExerciseId)
+  const startTimer = useWorkoutStore(s => s.startTimer)
+  const flashPR = useWorkoutStore(s => s.flashPR)
+
+  const workingSets = sessionLogs.filter(l => !l.isWarmup)
+  const isPR = prExerciseId === exercise.id
+  const lastLogWeight = workingSets.at(-1)?.weightKg ?? te.plannedWeightKg
+  const setsLeft = te.plannedSets - workingSets.length
+  const allSetsLogged = setsLeft <= 0
+
+  const plateBreakdown = exercise.equipmentType === 'barbell' && te.plannedWeightKg
+    ? plateBreakdownLabel(te.plannedWeightKg)
+    : null
+
+  const startLongPress = useCallback((log: SetLog) => {
+    longPressTimer.current = setTimeout(() => {
+      setLogMenu({ logId: log.id!, weight: log.weightKg, reps: log.reps })
+    }, 500)
+  }, [])
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  async function handleLogSet(weight: number | null, reps: number) {
+    const setNumber = workingSets.length + 1
+    const setLogId = await db.setLogs.add({
+      sessionId,
+      exerciseId: exercise.id!,
+      setNumber,
+      weightKg: weight,
+      reps,
+      isWarmup: false,
+      isPR: false,
+      loggedAt: new Date().toISOString(),
+    })
+    if (weight !== null) {
+      const isNewPR = await detectAndSavePR(exercise.id!, weight, reps, sessionId, setLogId as number)
+      if (isNewPR) {
+        await db.setLogs.update(setLogId as number, { isPR: true })
+        flashPR(exercise.id!)
+      }
+    }
+    startTimer(exercise.restSeconds)
+    onSetLogged()
+  }
+
+  async function handleDeleteLog(logId: number) {
+    const log = await db.setLogs.get(logId)
+    if (log?.isPR) {
+      const prs = await db.personalRecords
+        .where('exerciseId').equals(log.exerciseId)
+        .filter(pr => pr.setLogId === logId)
+        .toArray()
+      await Promise.all(prs.map(pr => db.personalRecords.delete(pr.id!)))
+    }
+    await db.setLogs.delete(logId)
+    setLogMenu(null)
+    onSetLogged()
+  }
+
+  async function handleEditLog(logId: number, weight: number | null, reps: number) {
+    await db.setLogs.update(logId, { weightKg: weight, reps })
+    setEditingLog(null)
+    onSetLogged()
+  }
+
+  if (skipped) {
+    return (
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] px-4 py-3 flex items-center justify-between opacity-60">
+        <p className="text-sm text-[#888888]">{exercise.name} <span className="text-xs">— skipped</span></p>
+        <button onClick={() => setSkipped(false)} className="text-xs text-[#f97316]">Undo</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn(
+      'bg-[#1a1a1a] rounded-2xl border overflow-hidden',
+      isPR ? 'border-[#22c55e]' : 'border-[#2a2a2a]'
+    )}>
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-base leading-tight">{exercise.name}</h3>
+              {isPR && (
+                <span className="flex items-center gap-1 text-xs text-[#22c55e] font-semibold">
+                  <Trophy size={12} /> PR!
+                </span>
+              )}
+              {allSetsLogged && (
+                <span className="text-xs text-[#f97316] font-semibold">Done ✓</span>
+              )}
+            </div>
+            {exercise.notes && (
+              <p className="text-xs text-[#888888] italic mt-0.5">{exercise.notes}</p>
+            )}
+            <p className="text-sm text-[#888888] mt-0.5">
+              {te.plannedSets} × {te.plannedReps}
+              {exercise.equipmentType !== 'bodyweight' && te.plannedWeightKg !== null && (
+                <span className="ml-2 text-[#f97316]">
+                  {formatWeight(te.plannedWeightKg, exercise.equipmentType)}
+                </span>
+              )}
+            </p>
+            {plateBreakdown && (
+              <p className="text-xs text-[#888888] mt-0.5">Plates/side: {plateBreakdown}</p>
+            )}
+          </div>
+
+          {/* Skip */}
+          {!allSetsLogged && (
+            <div className="shrink-0">
+              {!confirmSkip ? (
+                <button
+                  onClick={() => setConfirmSkip(true)}
+                  className="flex items-center gap-1 text-xs text-[#888888] border border-[#2a2a2a] rounded-lg px-2 py-1"
+                >
+                  <SkipForward size={12} />
+                  Skip
+                </button>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setSkipped(true)}
+                    className="text-xs bg-[#444444] text-white px-2 py-1 rounded-lg"
+                  >
+                    Confirm
+                  </button>
+                  <button onClick={() => setConfirmSkip(false)} className="text-[#888888]">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Warmup toggle */}
+        {te.warmupWeights.length > 0 && (
+          <button
+            onClick={() => setShowWarmup(!showWarmup)}
+            className="flex items-center gap-1 text-xs text-[#888888] mt-2"
+          >
+            {showWarmup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            Warmup ({te.warmupWeights.length} sets)
+          </button>
+        )}
+      </div>
+
+      {/* Warmup checklist */}
+      {showWarmup && (
+        <div className="px-4 pb-3 border-t border-[#2a2a2a] pt-3">
+          <div className="flex flex-wrap gap-2">
+            {te.warmupWeights.map((w, i) => {
+              const done = completedWarmups.has(i)
+              return (
+                <button
+                  key={i}
+                  onClick={() => setCompletedWarmups(prev => {
+                    const next = new Set(prev)
+                    done ? next.delete(i) : next.add(i)
+                    return next
+                  })}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                    done
+                      ? 'bg-[#f97316]/20 border-[#f97316] text-[#f97316] line-through'
+                      : 'bg-[#242424] border-[#2a2a2a] text-[#888888]'
+                  )}
+                >
+                  {formatWeight(w, exercise.equipmentType)} × 5
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Working sets */}
+      <div className="border-t border-[#2a2a2a]">
+        {/* Long-press action menu */}
+        {logMenu && (
+          <div className="px-4 py-2.5 bg-[#242424] border-b border-[#2a2a2a] flex items-center justify-between gap-2">
+            <p className="text-xs text-[#888888] flex-1 truncate">
+              {logMenu.weight !== null ? `${logMenu.weight} ${weightLabel(exercise.equipmentType)}` : 'BW'} × {logMenu.reps} reps
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => { setEditingLog(logMenu); setLogMenu(null) }}
+                className="text-xs bg-[#f97316] text-white px-3 py-1 rounded-lg"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDeleteLog(logMenu.logId)}
+                className="text-xs bg-[#ef4444] text-white px-3 py-1 rounded-lg"
+              >
+                Delete
+              </button>
+              <button onClick={() => setLogMenu(null)} className="text-[#888888] px-1">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {workingSets.map((log, i) => {
+          if (editingLog?.logId === log.id) {
+            return (
+              <InlineEditRow
+                key={log.id}
+                entry={editingLog!}
+                exercise={exercise}
+                onSave={handleEditLog}
+                onCancel={() => setEditingLog(null)}
+              />
+            )
+          }
+          return (
+            <div
+              key={log.id}
+              onPointerDown={() => startLongPress(log)}
+              onPointerUp={cancelLongPress}
+              onPointerCancel={cancelLongPress}
+              onPointerLeave={cancelLongPress}
+              className="px-4 py-2.5 flex items-center gap-3 text-sm border-b border-[#2a2a2a]/50 select-none cursor-pointer"
+            >
+              <span className="w-6 text-center text-[#888888] text-xs">{i + 1}</span>
+              <span className="flex-1 text-[#f5f5f5] tabular-nums">
+                {log.weightKg !== null ? `${log.weightKg} ${weightLabel(exercise.equipmentType)}` : 'BW'}
+              </span>
+              <span className="text-[#f5f5f5] tabular-nums">{log.reps} reps</span>
+              {log.isPR && <Trophy size={14} className="text-[#22c55e]" />}
+            </div>
+          )
+        })}
+
+        {!allSetsLogged && (
+          <SetRow
+            setNumber={workingSets.length + 1}
+            exercise={exercise}
+            defaultWeight={lastLogWeight}
+            defaultReps={parseInt(te.plannedReps) || 8}
+            onLog={handleLogSet}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function InlineEditRow({
+  entry,
+  exercise,
+  onSave,
+  onCancel,
+}: {
+  entry: LogEntry
+  exercise: Exercise
+  onSave: (id: number, weight: number | null, reps: number) => void
+  onCancel: () => void
+}) {
+  const isBodyweight = exercise.equipmentType === 'bodyweight'
+  const [weight, setWeight] = useState(entry.weight?.toString() ?? '')
+  const [reps, setReps] = useState(entry.reps.toString())
+
+  function handleSave() {
+    const w = isBodyweight ? null : parseFloat(weight)
+    const r = parseInt(reps)
+    if (isNaN(r) || r <= 0) return
+    if (!isBodyweight && (isNaN(w!) || w! < 0)) return
+    onSave(entry.logId, w, r)
+  }
+
+  return (
+    <div className="px-3 py-2.5 flex items-center gap-2 bg-[#1f1f1f] border-b border-[#2a2a2a]/50">
+      {!isBodyweight && (
+        <input
+          type="number"
+          inputMode="decimal"
+          value={weight}
+          onChange={e => setWeight(e.target.value)}
+          className="w-20 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
+        />
+      )}
+      <input
+        type="number"
+        inputMode="numeric"
+        value={reps}
+        onChange={e => setReps(e.target.value)}
+        className="w-14 bg-[#242424] text-[#f5f5f5] text-center text-sm rounded-lg px-2 py-1.5 border border-[#f97316] outline-none"
+      />
+      <button onClick={handleSave} className="flex-1 bg-[#f97316] text-white text-xs font-semibold py-2 rounded-lg">
+        Save
+      </button>
+      <button onClick={onCancel} className="text-[#888888]">
+        <X size={16} />
+      </button>
+    </div>
+  )
+}
