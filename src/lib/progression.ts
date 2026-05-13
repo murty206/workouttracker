@@ -38,10 +38,29 @@ export function evaluatePerformance(
 
 export async function applyProgression(sessionId: number): Promise<void> {
   const session = await db.sessions.get(sessionId)
-  if (!session?.workoutTemplateId) return
+  if (!session?.workoutTemplateId || !session.weekNumber || !session.programId) return
+
+  const currentTemplate = await db.workoutTemplates.get(session.workoutTemplateId)
+  if (!currentTemplate) return
+
+  const nextWeek = await db.programWeeks
+    .where('[programId+weekNumber]')
+    .equals([session.programId, session.weekNumber + 1])
+    .first()
+  if (!nextWeek) return
+
+  const nextTemplate = await db.workoutTemplates
+    .where('programWeekId').equals(nextWeek.id!)
+    .filter(t => t.label === currentTemplate.label)
+    .first()
+  if (!nextTemplate) return
 
   const templateExercises = await db.templateExercises
     .where('workoutTemplateId').equals(session.workoutTemplateId)
+    .toArray()
+
+  const nextTemplateExercises = await db.templateExercises
+    .where('workoutTemplateId').equals(nextTemplate.id!)
     .toArray()
 
   for (const te of templateExercises) {
@@ -63,10 +82,13 @@ export async function applyProgression(sessionId: number): Promise<void> {
 
     if (result === 'SAME') continue
 
+    const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
+    if (!nextTe) continue
+
     const currentWeight = te.plannedWeightKg ?? 0
     const delta = result === 'INCREASE' ? exercise.incrementKg : -exercise.incrementKg
     const nextWeight = Math.max(0, Math.round((currentWeight + delta) * 100) / 100)
 
-    await db.templateExercises.update(te.id!, { plannedWeightKg: nextWeight })
+    await db.templateExercises.update(nextTe.id!, { plannedWeightKg: nextWeight })
   }
 }

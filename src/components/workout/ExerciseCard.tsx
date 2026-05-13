@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Trophy, SkipForward, X, MoreHorizontal } from 'lucide-react'
 import { db } from '@/lib/db'
-import { detectAndSavePR } from '@/lib/pr'
+import { detectAndSavePR, rebuildPRsForExercise } from '@/lib/pr'
 import { useWorkoutStore } from '@/store/workoutStore'
 import { formatWeight, weightLabel } from '@/lib/weight'
 import { plateBreakdownLabel } from '@/lib/plates'
@@ -67,20 +67,18 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
 
   async function handleDeleteLog(logId: number) {
     const log = await db.setLogs.get(logId)
-    if (log?.isPR) {
-      const prs = await db.personalRecords
-        .where('exerciseId').equals(log.exerciseId)
-        .filter(pr => pr.setLogId === logId)
-        .toArray()
-      await Promise.all(prs.map(pr => db.personalRecords.delete(pr.id!)))
-    }
+    if (!log) return
     await db.setLogs.delete(logId)
+    if (!log.isWarmup) await rebuildPRsForExercise(log.exerciseId)
     setLogMenu(null)
     onSetLogged()
   }
 
   async function handleEditLog(logId: number, weight: number | null, reps: number) {
+    const log = await db.setLogs.get(logId)
+    if (!log) return
     await db.setLogs.update(logId, { weightKg: weight, reps })
+    if (!log.isWarmup) await rebuildPRsForExercise(log.exerciseId)
     setEditingLog(null)
     onSetLogged()
   }

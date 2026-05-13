@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { Calendar, ChevronLeft, Clock, Trophy, MoreHorizontal, X } from 'lucide-react'
 import { weightLabel } from '@/lib/weight'
+import { rebuildPRsForExercise } from '@/lib/pr'
 
 type LogEntry = { logId: number; weight: number | null; reps: number; exerciseId: number }
 
@@ -50,19 +51,17 @@ export default function SessionDetailPage() {
 
   async function handleDelete(logId: number, exerciseId: number) {
     const log = await db.setLogs.get(logId)
-    if (log?.isPR) {
-      const prs = await db.personalRecords
-        .where('exerciseId').equals(exerciseId)
-        .filter(pr => pr.setLogId === logId)
-        .toArray()
-      await Promise.all(prs.map(pr => db.personalRecords.delete(pr.id!)))
-    }
+    if (!log) return
     await db.setLogs.delete(logId)
+    if (!log.isWarmup) await rebuildPRsForExercise(exerciseId)
     setLogMenu(null)
   }
 
   async function handleEdit(logId: number, weight: number | null, reps: number) {
+    const log = await db.setLogs.get(logId)
+    if (!log) return
     await db.setLogs.update(logId, { weightKg: weight, reps })
+    if (!log.isWarmup) await rebuildPRsForExercise(log.exerciseId)
     setEditingLog(null)
   }
 
