@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { carryForwardWeights } from '@/lib/progression'
 import type { WorkoutTemplate, Session } from '@/types'
 
 export async function getCompletedSessions(): Promise<Session[]> {
@@ -86,6 +87,9 @@ export async function skipSession(templateId: number, weekNumber: number, label:
     completedAt: new Date().toISOString(),
     skipped: true,
   })
+  if (program) {
+    await carryForwardWeights(program.id!, weekNumber, templateId, label)
+  }
 }
 
 export async function restartProgram(): Promise<void> {

@@ -92,3 +92,40 @@ export async function applyProgression(sessionId: number): Promise<void> {
     await db.templateExercises.update(nextTe.id!, { plannedWeightKg: nextWeight })
   }
 }
+
+// Copy this template's planned weights into the next-week same-label template
+// without modification. Use when a session is skipped so prior progression
+// (already written into the current-week template) carries forward.
+export async function carryForwardWeights(
+  programId: number,
+  weekNumber: number,
+  templateId: number,
+  label: 'A' | 'B' | 'C',
+): Promise<void> {
+  const nextWeek = await db.programWeeks
+    .where('[programId+weekNumber]')
+    .equals([programId, weekNumber + 1])
+    .first()
+  if (!nextWeek) return
+
+  const nextTemplate = await db.workoutTemplates
+    .where('programWeekId').equals(nextWeek.id!)
+    .filter(t => t.label === label)
+    .first()
+  if (!nextTemplate) return
+
+  const templateExercises = await db.templateExercises
+    .where('workoutTemplateId').equals(templateId)
+    .toArray()
+
+  const nextTemplateExercises = await db.templateExercises
+    .where('workoutTemplateId').equals(nextTemplate.id!)
+    .toArray()
+
+  for (const te of templateExercises) {
+    if (te.plannedWeightKg === null) continue
+    const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
+    if (!nextTe) continue
+    await db.templateExercises.update(nextTe.id!, { plannedWeightKg: te.plannedWeightKg })
+  }
+}
