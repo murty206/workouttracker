@@ -1,23 +1,24 @@
 import { db } from '@/lib/db'
 import type { ProgressionResult, TemplateExercise } from '@/types'
 
-interface RepScheme {
+export interface RepScheme {
   lower: number
   upper: number | null
+  isAmrap: boolean
 }
 
 export function parseRepScheme(reps: string): RepScheme | null {
   if (reps === 'max') return null
   if (reps.endsWith('+')) {
     const lower = parseInt(reps)
-    return { lower, upper: null }
+    return { lower, upper: null, isAmrap: true }
   }
   if (reps.includes('-')) {
     const [l, u] = reps.split('-').map(Number)
-    return { lower: l, upper: u }
+    return { lower: l, upper: u, isAmrap: false }
   }
   const n = parseInt(reps)
-  return { lower: n, upper: n }
+  return { lower: n, upper: n, isAmrap: false }
 }
 
 export function evaluatePerformance(
@@ -25,9 +26,20 @@ export function evaluatePerformance(
   plannedSets: number,
   repScheme: RepScheme
 ): ProgressionResult {
-  const { lower, upper } = repScheme
-  const effectiveUpper = upper ?? Math.round(lower * 1.5)
+  const { lower, upper, isAmrap } = repScheme
 
+  if (isAmrap) {
+    // Open-ended scheme ("5+"): no hard upper. Use 1.5× lower as a soft cap
+    // so a clearly above-target session still triggers INCREASE.
+    const effectiveUpper = Math.round(lower * 1.5)
+    const targetMax = effectiveUpper * plannedSets
+    const targetMin = lower * plannedSets * 0.8
+    if (totalReps >= targetMax) return 'INCREASE'
+    if (totalReps < targetMin) return 'DECREASE'
+    return 'SAME'
+  }
+
+  const effectiveUpper = upper ?? lower
   const targetMax = effectiveUpper * plannedSets
   const targetMin = lower * plannedSets * 0.8
 

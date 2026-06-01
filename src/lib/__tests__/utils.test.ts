@@ -105,15 +105,15 @@ describe('dotsScore', () => {
 
 describe('parseRepScheme', () => {
   it('parses fixed reps "8"', () => {
-    expect(parseRepScheme('8')).toEqual({ lower: 8, upper: 8 })
+    expect(parseRepScheme('8')).toEqual({ lower: 8, upper: 8, isAmrap: false })
   })
 
   it('parses a range "8-12"', () => {
-    expect(parseRepScheme('8-12')).toEqual({ lower: 8, upper: 12 })
+    expect(parseRepScheme('8-12')).toEqual({ lower: 8, upper: 12, isAmrap: false })
   })
 
-  it('parses open-ended "5+"', () => {
-    expect(parseRepScheme('5+')).toEqual({ lower: 5, upper: null })
+  it('parses open-ended "5+" with isAmrap flag', () => {
+    expect(parseRepScheme('5+')).toEqual({ lower: 5, upper: null, isAmrap: true })
   })
 
   it('returns null for "max"', () => {
@@ -125,7 +125,7 @@ describe('parseRepScheme', () => {
 
 describe('evaluatePerformance', () => {
   // 3 sets × 8-12 reps → target max = 36, target min = 3×8×0.8 = 19.2
-  const scheme = { lower: 8, upper: 12 }
+  const scheme = { lower: 8, upper: 12, isAmrap: false }
   const sets = 3
 
   it('INCREASE when all sets hit upper rep target (36 reps)', () => {
@@ -153,17 +153,24 @@ describe('evaluatePerformance', () => {
   })
 
   it('handles fixed rep scheme (5×5)', () => {
-    const fixed = { lower: 5, upper: 5 }
+    const fixed = { lower: 5, upper: 5, isAmrap: false }
     expect(evaluatePerformance(25, 5, fixed)).toBe('INCREASE')
     expect(evaluatePerformance(22, 5, fixed)).toBe('SAME')
     expect(evaluatePerformance(18, 5, fixed)).toBe('DECREASE')
   })
 
-  it('handles open-ended scheme ("5+") using 1.5× lower as effective upper', () => {
+  it('handles open-ended AMRAP scheme ("5+") using 1.5× lower as effective upper', () => {
     // effective upper = Math.round(5 * 1.5) = 8 → target max = 3 × 8 = 24; target min = 3×5×0.8 = 12
-    const openScheme = { lower: 5, upper: null }
+    const openScheme = { lower: 5, upper: null, isAmrap: true }
     expect(evaluatePerformance(24, 3, openScheme)).toBe('INCREASE')
     expect(evaluatePerformance(15, 3, openScheme)).toBe('SAME')
     expect(evaluatePerformance(11, 3, openScheme)).toBe('DECREASE')
+  })
+
+  it('isAmrap=false with upper=null falls back to lower as effective upper', () => {
+    // For a malformed fixed scheme this keeps deterministic behavior.
+    const scheme = { lower: 5, upper: null, isAmrap: false }
+    expect(evaluatePerformance(15, 3, scheme)).toBe('INCREASE') // 5*3 = 15
+    expect(evaluatePerformance(11, 3, scheme)).toBe('DECREASE')
   })
 })
