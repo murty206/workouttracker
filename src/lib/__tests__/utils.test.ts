@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { plateMath, plateBreakdownLabel } from '../plates'
 import { epley, dotsScore } from '../score'
-import { parseRepScheme, evaluatePerformance } from '../progression'
+import { parseRepScheme, evaluatePerformance, computeWarmupWeights } from '../progression'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
 
@@ -172,5 +172,43 @@ describe('evaluatePerformance', () => {
     const scheme = { lower: 5, upper: null, isAmrap: false }
     expect(evaluatePerformance(15, 3, scheme)).toBe('INCREASE') // 5*3 = 15
     expect(evaluatePerformance(11, 3, scheme)).toBe('DECREASE')
+  })
+})
+
+// ─── Warmup tiers ─────────────────────────────────────────────────────────────
+
+describe('computeWarmupWeights', () => {
+  it('returns empty for bodyweight regardless of weight', () => {
+    expect(computeWarmupWeights(100, 'bodyweight')).toEqual([])
+    expect(computeWarmupWeights(0, 'bodyweight')).toEqual([])
+  })
+
+  it('returns empty when working weight is below 10 kg', () => {
+    expect(computeWarmupWeights(5, 'dumbbell')).toEqual([])
+    expect(computeWarmupWeights(9.99, 'barbell')).toEqual([])
+  })
+
+  it('returns one warmup in the 10–20 kg band', () => {
+    expect(computeWarmupWeights(15, 'barbell')).toEqual([7.5])
+  })
+
+  it('returns two warmups in the 20–40 kg band', () => {
+    expect(computeWarmupWeights(25, 'barbell')).toEqual([12.5, 17.5])
+  })
+
+  it('returns three warmups at 40 kg and above', () => {
+    expect(computeWarmupWeights(50, 'barbell')).toEqual([20, 30, 40])
+  })
+
+  it('rounds down to the nearest 2.5 kg for barbell/dumbbell', () => {
+    // 0.75 * 25 = 18.75 → floors to 17.5 (NOT 20)
+    expect(computeWarmupWeights(25, 'dumbbell')).toEqual([12.5, 17.5])
+  })
+
+  it('rounds down to the nearest 5 kg for machines', () => {
+    // 0.5 * 25 = 12.5 → 10; 0.75 * 25 = 18.75 → 15
+    expect(computeWarmupWeights(25, 'machine')).toEqual([10, 15])
+    // 0.4 * 100 = 40; 0.6 * 100 = 60; 0.8 * 100 = 80
+    expect(computeWarmupWeights(100, 'machine')).toEqual([40, 60, 80])
   })
 })

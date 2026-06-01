@@ -1,5 +1,24 @@
 import { db } from '@/lib/db'
-import type { ProgressionResult, TemplateExercise } from '@/types'
+import type { EquipmentType, ProgressionResult } from '@/types'
+
+// Compute warmup weights from the working weight using fixed tiers.
+// Rounded DOWN to the nearest step so a beginner never warms up heavier
+// than intended (step = 5 kg for machines, 2.5 kg for everything else).
+export function computeWarmupWeights(
+  workingKg: number,
+  equipmentType: EquipmentType,
+): number[] {
+  if (equipmentType === 'bodyweight') return []
+  if (workingKg < 10) return []
+
+  let fractions: number[]
+  if (workingKg >= 40) fractions = [0.4, 0.6, 0.8]
+  else if (workingKg >= 20) fractions = [0.5, 0.75]
+  else fractions = [0.5]
+
+  const step = equipmentType === 'machine' ? 5 : 2.5
+  return fractions.map(f => Math.floor((workingKg * f) / step) * step)
+}
 
 export interface RepScheme {
   lower: number
@@ -100,8 +119,12 @@ export async function applyProgression(sessionId: number): Promise<void> {
     const currentWeight = te.plannedWeightKg ?? 0
     const delta = result === 'INCREASE' ? exercise.incrementKg : -exercise.incrementKg
     const nextWeight = Math.max(0, Math.round((currentWeight + delta) * 100) / 100)
+    const nextWarmups = computeWarmupWeights(nextWeight, exercise.equipmentType)
 
-    await db.templateExercises.update(nextTe.id!, { plannedWeightKg: nextWeight })
+    await db.templateExercises.update(nextTe.id!, {
+      plannedWeightKg: nextWeight,
+      warmupWeights: nextWarmups,
+    })
   }
 }
 
@@ -138,6 +161,12 @@ export async function carryForwardWeights(
     if (te.plannedWeightKg === null) continue
     const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
     if (!nextTe) continue
-    await db.templateExercises.update(nextTe.id!, { plannedWeightKg: te.plannedWeightKg })
+    const exercise = await db.exercises.get(te.exerciseId)
+    if (!exercise) continue
+    const warmups = computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType)
+    await db.templateExercises.update(nextTe.id!, {
+      plannedWeightKg: te.plannedWeightKg,
+      warmupWeights: warmups,
+    })
   }
 }
