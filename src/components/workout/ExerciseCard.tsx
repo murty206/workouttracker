@@ -32,7 +32,7 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
 
   const workingSets = sessionLogs.filter(l => !l.isWarmup)
   const warmupLogs = sessionLogs.filter(l => l.isWarmup)
-  const completedWarmupWeights = new Set(warmupLogs.map(l => l.weightKg))
+  const warmupBySetNumber = new Map(warmupLogs.map(l => [l.setNumber, l]))
   const isPR = prExerciseId === exercise.id
   const lastLogWeight = workingSets.at(-1)?.weightKg ?? te.plannedWeightKg
   const setsLeft = te.plannedSets - workingSets.length
@@ -164,19 +164,20 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
           <p className="text-xs text-[#888888] mb-2">Warmup</p>
           <div className="flex flex-wrap gap-2">
             {te.warmupWeights.map((w, i) => {
-              const done = completedWarmupWeights.has(w)
+              const setNumber = i + 1
+              const existingLog = warmupBySetNumber.get(setNumber)
+              const done = !!existingLog
               return (
                 <button
                   key={i}
                   onClick={async () => {
-                    if (done) {
-                      const log = warmupLogs.find(l => l.weightKg === w)
-                      if (log) await db.setLogs.delete(log.id!)
+                    if (existingLog) {
+                      await db.setLogs.delete(existingLog.id!)
                     } else {
                       await db.setLogs.add({
                         sessionId,
                         exerciseId: exercise.id!,
-                        setNumber: i + 1,
+                        setNumber,
                         weightKg: w,
                         reps: 5,
                         isWarmup: true,
