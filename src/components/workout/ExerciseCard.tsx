@@ -34,12 +34,22 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
   const warmupLogs = sessionLogs.filter(l => l.isWarmup)
   const warmupBySetNumber = new Map(warmupLogs.map(l => [l.setNumber, l]))
   const isPR = prExerciseId === exercise.id
-  const lastLogWeight = workingSets.at(-1)?.weightKg ?? te.plannedWeightKg
   const setsLeft = te.plannedSets - workingSets.length
   const allSetsLogged = setsLeft <= 0
 
-  const plateBreakdown = exercise.equipmentType === 'barbell' && te.plannedWeightKg
-    ? plateBreakdownLabel(te.plannedWeightKg)
+  // Lifted weight/reps state so the plate breakdown can react to what the
+  // user is actually about to lift, not just the planned weight.
+  const initialWeight = workingSets.at(-1)?.weightKg ?? te.plannedWeightKg
+  const [currentWeight, setCurrentWeight] = useState<string>(
+    initialWeight !== null ? initialWeight.toString() : ''
+  )
+  const [currentReps, setCurrentReps] = useState<string>(
+    (parseInt(te.plannedReps) || 8).toString()
+  )
+
+  const parsedWeight = parseFloat(currentWeight)
+  const plateBreakdown = exercise.equipmentType === 'barbell' && !isNaN(parsedWeight) && parsedWeight > 0
+    ? plateBreakdownLabel(parsedWeight)
     : null
 
   async function handleLogSet(weight: number | null, reps: number) {
@@ -61,6 +71,8 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
         flashPR(exercise.id!)
       }
     }
+    if (weight !== null) setCurrentWeight(weight.toString())
+    setCurrentReps(reps.toString())
     startTimer(exercise.restSeconds)
     onSetLogged()
   }
@@ -269,8 +281,10 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
           <SetRow
             setNumber={workingSets.length + 1}
             exercise={exercise}
-            defaultWeight={lastLogWeight}
-            defaultReps={parseInt(te.plannedReps) || 8}
+            weight={currentWeight}
+            reps={currentReps}
+            onWeightChange={setCurrentWeight}
+            onRepsChange={setCurrentReps}
             onLog={handleLogSet}
           />
         )}

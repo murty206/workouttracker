@@ -1,5 +1,4 @@
 'use client'
-import { useState } from 'react'
 import { Plus, Minus, Check } from 'lucide-react'
 import { weightLabel } from '@/lib/weight'
 import type { Exercise } from '@/types'
@@ -7,25 +6,24 @@ import type { Exercise } from '@/types'
 interface Props {
   setNumber: number
   exercise: Exercise
-  defaultWeight: number | null
-  defaultReps: number
+  weight: string
+  reps: string
+  onWeightChange: (w: string) => void
+  onRepsChange: (r: string) => void
   onLog: (weight: number | null, reps: number) => void
 }
 
-export function SetRow({ setNumber, exercise, defaultWeight, defaultReps, onLog }: Props) {
+export function SetRow({ setNumber, exercise, weight, reps, onWeightChange, onRepsChange, onLog }: Props) {
   const isBodyweight = exercise.equipmentType === 'bodyweight'
   const inc = exercise.incrementKg || 1.25
 
-  const [weight, setWeight] = useState<string>(defaultWeight?.toString() ?? '')
-  const [reps, setReps] = useState<string>(defaultReps.toString())
-
   function adjustWeight(delta: number) {
     const current = parseFloat(weight) || 0
-    setWeight(String(Math.max(0, Math.round((current + delta) * 100) / 100)))
+    onWeightChange(String(Math.max(0, Math.round((current + delta) * 100) / 100)))
   }
 
   function adjustReps(delta: number) {
-    setReps(String(Math.max(1, (parseInt(reps) || 0) + delta)))
+    onRepsChange(String(Math.max(1, (parseInt(reps) || 0) + delta)))
   }
 
   function handleLog() {
@@ -54,7 +52,7 @@ export function SetRow({ setNumber, exercise, defaultWeight, defaultReps, onLog 
               type="number"
               inputMode="decimal"
               value={weight}
-              onChange={e => setWeight(e.target.value)}
+              onChange={e => onWeightChange(e.target.value)}
               onFocus={e => e.target.select()}
               className="w-full bg-[#1a1a1a] text-[#f5f5f5] text-center text-base font-semibold rounded-lg px-2 py-1.5 border border-[#2a2a2a] focus:border-[#f97316] outline-none tabular-nums"
             />
@@ -81,7 +79,7 @@ export function SetRow({ setNumber, exercise, defaultWeight, defaultReps, onLog 
           type="number"
           inputMode="numeric"
           value={reps}
-          onChange={e => setReps(e.target.value)}
+          onChange={e => onRepsChange(e.target.value)}
           onFocus={e => e.target.select()}
           className="w-12 bg-[#1a1a1a] text-[#f5f5f5] text-center text-base font-semibold rounded-lg px-1 py-1.5 border border-[#2a2a2a] focus:border-[#f97316] outline-none tabular-nums"
         />
