@@ -67,7 +67,67 @@ export function evaluatePerformance(
   return 'SAME'
 }
 
-export async function applyProgression(sessionId: number): Promise<void> {
+// Median of a list of working-set weights. Pure, exported for testing.
+export function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid]
+}
+
+export interface PerformanceMismatch {
+  exerciseId: number
+  exerciseName: string
+  plannedWeightKg: number
+  actualMedianKg: number
+}
+
+// Find exercises in a finished session where the user's actual median
+// working weight diverged from the planned weight. Used to prompt the
+// user in WorkoutSummary so a deliberate weight bump (or drop) carries
+// forward into next week instead of silently snapping back.
+export async function detectMismatches(sessionId: number): Promise<PerformanceMismatch[]> {
+  const session = await db.sessions.get(sessionId)
+  if (!session?.workoutTemplateId) return []
+
+  const tes = await db.templateExercises
+    .where('workoutTemplateId').equals(session.workoutTemplateId)
+    .toArray()
+
+  const result: PerformanceMismatch[] = []
+
+  for (const te of tes) {
+    if (te.plannedWeightKg === null) continue
+    const exercise = await db.exercises.get(te.exerciseId)
+    if (!exercise || exercise.equipmentType === 'bodyweight') continue
+
+    const logs = await db.setLogs
+      .where('sessionId').equals(sessionId)
+      .filter(l => l.exerciseId === te.exerciseId && !l.isWarmup && l.weightKg !== null)
+      .toArray()
+
+    if (logs.length === 0) continue
+
+    const med = median(logs.map(l => l.weightKg!))
+    if (Math.abs(med - te.plannedWeightKg) > 0.01) {
+      result.push({
+        exerciseId: te.exerciseId,
+        exerciseName: exercise.name,
+        plannedWeightKg: te.plannedWeightKg,
+        actualMedianKg: Math.round(med * 100) / 100,
+      })
+    }
+  }
+
+  return result
+}
+
+export async function applyProgression(
+  sessionId: number,
+  baselineOverrides?: Map<number, number>,
+): Promise<void> {
   const session = await db.sessions.get(sessionId)
   if (!session?.workoutTemplateId || !session.weekNumber || !session.programId) return
 
@@ -110,15 +170,21 @@ export async function applyProgression(sessionId: number): Promise<void> {
 
     const totalReps = logs.reduce((sum, l) => sum + l.reps, 0)
     const result = evaluatePerformance(totalReps, te.plannedSets, scheme)
+    const override = baselineOverrides?.get(te.exerciseId)
 
-    if (result === 'SAME') continue
+    // Without an override, SAME means nothing to write.
+    if (result === 'SAME' && override === undefined) continue
 
     const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
     if (!nextTe) continue
 
-    const currentWeight = te.plannedWeightKg ?? 0
-    const delta = result === 'INCREASE' ? exercise.incrementKg : -exercise.incrementKg
-    const nextWeight = Math.max(0, Math.round((currentWeight + delta) * 100) / 100)
+    // Use the override (auto-regulated baseline) when present so an
+    // increase/decrease applies on top of what the user actually lifted.
+    const basis = override ?? (te.plannedWeightKg ?? 0)
+    const delta = result === 'INCREASE' ? exercise.incrementKg
+      : result === 'DECREASE' ? -exercise.incrementKg
+      : 0
+    const nextWeight = Math.max(0, Math.round((basis + delta) * 100) / 100)
     const nextWarmups = computeWarmupWeights(nextWeight, exercise.equipmentType)
 
     await db.templateExercises.update(nextTe.id!, {

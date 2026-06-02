@@ -3,7 +3,6 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 import { db } from '@/lib/db'
-import { applyProgression } from '@/lib/progression'
 import type { TemplateExercise, Exercise, SetLog } from '@/types'
 import { ExerciseCard } from '@/components/workout/ExerciseCard'
 import { RestTimer } from '@/components/workout/RestTimer'
@@ -77,7 +76,8 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
   async function handleFinish() {
     setFinishing(true)
     await db.sessions.update(sessionId, { completedAt: new Date().toISOString() })
-    await applyProgression(sessionId)
+    // Progression now runs inside WorkoutSummary so it can honour the user's
+    // auto-regulation choices for any planned vs. actual weight mismatches.
     setShowSummary(true)
     setFinishing(false)
   }

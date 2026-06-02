@@ -1,7 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { db } from '@/lib/db'
+import {
+  applyProgression,
+  detectMismatches,
+  type PerformanceMismatch,
+} from '@/lib/progression'
 import type { SetLog, Exercise, PersonalRecord } from '@/types'
 
 interface Props {
@@ -9,11 +14,16 @@ interface Props {
   onClose: () => void
 }
 
+type Choice = 'planned' | 'actual'
+
 export function WorkoutSummary({ sessionId, onClose }: Props) {
   const [prs, setPRs] = useState<Array<{ record: PersonalRecord; exercise: Exercise }>>([])
   const [totalVolume, setTotalVolume] = useState(0)
   const [duration, setDuration] = useState('')
   const [note, setNote] = useState('')
+  const [mismatches, setMismatches] = useState<PerformanceMismatch[]>([])
+  const [choices, setChoices] = useState<Record<number, Choice>>({})
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -39,13 +49,36 @@ export function WorkoutSummary({ sessionId, onClose }: Props) {
         })
       )
       setPRs(prData.filter(Boolean) as Array<{ record: PersonalRecord; exercise: Exercise }>)
+
+      const ms = await detectMismatches(sessionId)
+      setMismatches(ms)
+      const initial: Record<number, Choice> = {}
+      for (const m of ms) initial[m.exerciseId] = 'planned'
+      setChoices(initial)
     }
     load()
   }, [sessionId])
 
+  async function handleDone() {
+    if (saving) return
+    setSaving(true)
+    if (note.trim()) {
+      await db.sessions.update(sessionId, { notes: note.trim() })
+    }
+    const overrides = new Map<number, number>()
+    for (const m of mismatches) {
+      if (choices[m.exerciseId] === 'actual') {
+        overrides.set(m.exerciseId, m.actualMedianKg)
+      }
+    }
+    await applyProgression(sessionId, overrides.size ? overrides : undefined)
+    setSaving(false)
+    onClose()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-end">
-      <div className="bg-[#1a1a1a] rounded-t-3xl p-6 w-full max-w-lg mx-auto border-t border-[#2a2a2a]">
+      <div className="bg-[#1a1a1a] rounded-t-3xl p-6 w-full max-w-lg mx-auto border-t border-[#2a2a2a] max-h-[90vh] overflow-y-auto">
         <div className="text-center mb-6">
           <div className="w-16 h-16 rounded-full bg-[#f97316]/20 flex items-center justify-center mx-auto mb-3">
             <Trophy size={32} className="text-[#f97316]" />
@@ -81,6 +114,50 @@ export function WorkoutSummary({ sessionId, onClose }: Props) {
           </div>
         )}
 
+        {mismatches.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs text-[#888888] uppercase tracking-wider mb-2">Adjust next week?</p>
+            <div className="space-y-2">
+              {mismatches.map(m => {
+                const choice = choices[m.exerciseId] ?? 'planned'
+                return (
+                  <div key={m.exerciseId} className="bg-[#242424] border border-[#2a2a2a] rounded-xl p-3">
+                    <p className="text-sm font-medium">{m.exerciseName}</p>
+                    <p className="text-xs text-[#888888] mt-0.5">
+                      Planned <span className="text-[#f5f5f5]">{m.plannedWeightKg} kg</span>,
+                      you lifted <span className="text-[#f5f5f5]">{m.actualMedianKg} kg</span>
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => setChoices(c => ({ ...c, [m.exerciseId]: 'actual' }))}
+                        className={
+                          'flex-1 text-xs font-semibold py-2 rounded-lg border ' +
+                          (choice === 'actual'
+                            ? 'bg-[#f97316] text-white border-[#f97316]'
+                            : 'bg-transparent text-[#888888] border-[#2a2a2a]')
+                        }
+                      >
+                        Set baseline {m.actualMedianKg} kg
+                      </button>
+                      <button
+                        onClick={() => setChoices(c => ({ ...c, [m.exerciseId]: 'planned' }))}
+                        className={
+                          'flex-1 text-xs font-semibold py-2 rounded-lg border ' +
+                          (choice === 'planned'
+                            ? 'bg-[#2a2a2a] text-[#f5f5f5] border-[#2a2a2a]'
+                            : 'bg-transparent text-[#888888] border-[#2a2a2a]')
+                        }
+                      >
+                        Keep {m.plannedWeightKg} kg
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mb-4">
           <textarea
             value={note}
@@ -92,15 +169,11 @@ export function WorkoutSummary({ sessionId, onClose }: Props) {
         </div>
 
         <button
-          onClick={async () => {
-            if (note.trim()) {
-              await db.sessions.update(sessionId, { notes: note.trim() })
-            }
-            onClose()
-          }}
-          className="w-full bg-[#f97316] text-white font-semibold py-4 rounded-2xl"
+          onClick={handleDone}
+          disabled={saving}
+          className="w-full bg-[#f97316] text-white font-semibold py-4 rounded-2xl disabled:opacity-60"
         >
-          Done
+          {saving ? 'Saving…' : 'Done'}
         </button>
       </div>
     </div>

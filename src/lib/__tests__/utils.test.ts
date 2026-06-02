@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { plateMath, plateBreakdownLabel } from '../plates'
 import { epley, dotsScore } from '../score'
-import { parseRepScheme, evaluatePerformance, computeWarmupWeights } from '../progression'
+import { parseRepScheme, evaluatePerformance, computeWarmupWeights, median } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
@@ -243,5 +243,30 @@ describe('remainingSeconds', () => {
     const start = 1_000_000
     expect(remainingSeconds(start + 500, start, 60_000)).toBe(60)
     expect(remainingSeconds(start + 1_500, start, 60_000)).toBe(59)
+  })
+})
+
+// ─── Auto-regulation median ───────────────────────────────────────────────────
+
+describe('median', () => {
+  it('returns 0 on empty input', () => {
+    expect(median([])).toBe(0)
+  })
+
+  it('returns the single value for length 1', () => {
+    expect(median([22.5])).toBe(22.5)
+  })
+
+  it('returns the middle for odd length', () => {
+    // user planned 15, lifted [17.5, 20, 22.5] — median 20 → prompt to bump baseline
+    expect(median([17.5, 20, 22.5])).toBe(20)
+  })
+
+  it('averages the two middle values for even length', () => {
+    expect(median([10, 15, 20, 25])).toBe(17.5)
+  })
+
+  it('is order-independent', () => {
+    expect(median([25, 15, 10, 20])).toBe(17.5)
   })
 })
