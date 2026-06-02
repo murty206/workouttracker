@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { plateMath, plateBreakdownLabel } from '../plates'
 import { epley, dotsScore } from '../score'
 import { parseRepScheme, evaluatePerformance, computeWarmupWeights } from '../progression'
+import { remainingSeconds } from '../../components/workout/RestTimer'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
 
@@ -210,5 +211,37 @@ describe('computeWarmupWeights', () => {
     expect(computeWarmupWeights(25, 'machine')).toEqual([10, 15])
     // 0.4 * 100 = 40; 0.6 * 100 = 60; 0.8 * 100 = 80
     expect(computeWarmupWeights(100, 'machine')).toEqual([40, 60, 80])
+  })
+})
+
+// ─── Rest timer math ──────────────────────────────────────────────────────────
+
+describe('remainingSeconds', () => {
+  it('returns 0 when no timer is running', () => {
+    expect(remainingSeconds(Date.now(), null, 0)).toBe(0)
+    expect(remainingSeconds(Date.now(), null, 60_000)).toBe(0)
+  })
+
+  it('returns full duration immediately after start', () => {
+    const start = 1_000_000
+    expect(remainingSeconds(start, start, 60_000)).toBe(60)
+  })
+
+  it('counts down based on wall-clock time, immune to throttling', () => {
+    // Simulate 45s passing between start and now (as if the tab was backgrounded).
+    const start = 1_000_000
+    expect(remainingSeconds(start + 45_000, start, 60_000)).toBe(15)
+  })
+
+  it('returns 0 once the timer has elapsed', () => {
+    const start = 1_000_000
+    expect(remainingSeconds(start + 60_000, start, 60_000)).toBe(0)
+    expect(remainingSeconds(start + 90_000, start, 60_000)).toBe(0)
+  })
+
+  it('rounds partial seconds up so the display ticks at the second boundary', () => {
+    const start = 1_000_000
+    expect(remainingSeconds(start + 500, start, 60_000)).toBe(60)
+    expect(remainingSeconds(start + 1_500, start, 60_000)).toBe(59)
   })
 })

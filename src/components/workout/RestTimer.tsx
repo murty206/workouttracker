@@ -1,37 +1,75 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Plus, Minus } from 'lucide-react'
 import { useWorkoutStore } from '@/store/workoutStore'
 
+// Pure helper so the time math is unit-testable in isolation.
+export function remainingSeconds(nowMs: number, startMs: number | null, durationMs: number): number {
+  if (startMs === null) return 0
+  return Math.max(0, Math.ceil((startMs + durationMs - nowMs) / 1000))
+}
+
 export function RestTimer() {
-  const seconds = useWorkoutStore(s => s.restTimerSeconds)
-  const total = useWorkoutStore(s => s.restTimerTotal)
-  const tick = useWorkoutStore(s => s.tickTimer)
+  const startMs = useWorkoutStore(s => s.restTimerStartMs)
+  const durationMs = useWorkoutStore(s => s.restTimerDurationMs)
   const stop = useWorkoutStore(s => s.stopTimer)
   const startTimer = useWorkoutStore(s => s.startTimer)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const notifAsked = useWorkoutStore(s => s.notificationPermissionAsked)
+  const setNotifAsked = useWorkoutStore(s => s.setNotificationPermissionAsked)
 
-  useEffect(() => {
-    intervalRef.current = setInterval(tick, 1000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [tick])
+  const [now, setNow] = useState(() => Date.now())
+  const notifiedRef = useRef(false)
 
+  // Reset notified flag whenever a new timer starts.
   useEffect(() => {
-    if (seconds === 0 && total > 0) {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      // Vibrate on completion
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate([200, 100, 200, 100, 400])
-      }
+    notifiedRef.current = false
+  }, [startMs])
+
+  // UI tick — only re-renders, real time comes from Date.now() so the
+  // timer stays accurate even if the tab was backgrounded/throttled.
+  useEffect(() => {
+    if (startMs === null) return
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [startMs])
+
+  // Ask for Notification permission once per session, the first time a
+  // timer starts. Browsers require this to happen in a user-gesture path
+  // and they ignore subsequent prompts after the user has chosen.
+  useEffect(() => {
+    if (startMs === null) return
+    if (notifAsked) return
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission !== 'default') {
+      setNotifAsked(true)
+      return
     }
-  }, [seconds, total])
+    Notification.requestPermission().finally(() => setNotifAsked(true))
+  }, [startMs, notifAsked, setNotifAsked])
 
-  const pct = total > 0 ? (seconds / total) * 100 : 0
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
+  const remaining = remainingSeconds(now, startMs, durationMs)
+  const totalSec = Math.ceil(durationMs / 1000)
+  const pct = totalSec > 0 ? (remaining / totalSec) * 100 : 0
+
+  // Fire vibration + notification exactly once when the timer hits 0.
+  useEffect(() => {
+    if (startMs === null) return
+    if (remaining > 0) return
+    if (notifiedRef.current) return
+    notifiedRef.current = true
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200, 100, 400])
+    }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try { new Notification('Rest done', { body: 'Time to lift' }) } catch { /* ignore */ }
+    }
+  }, [remaining, startMs])
+
+  if (startMs === null || remaining === 0) return null
+
+  const mins = Math.floor(remaining / 60)
+  const secs = remaining % 60
   const display = `${mins}:${String(secs).padStart(2, '0')}`
-
-  if (seconds === 0) return null
 
   return (
     <div className="fixed bottom-20 left-0 right-0 z-40 max-w-lg mx-auto px-4">
@@ -51,7 +89,7 @@ export function RestTimer() {
 
         <div className="flex items-center justify-between">
           <button
-            onClick={() => startTimer(Math.max(15, seconds - 15))}
+            onClick={() => startTimer(Math.max(15, remaining - 15))}
             className="flex items-center gap-1 text-sm text-[#888888] bg-[#242424] px-3 py-1.5 rounded-lg"
           >
             <Minus size={14} /> 15s
@@ -60,7 +98,7 @@ export function RestTimer() {
           <span className="text-4xl font-bold tabular-nums text-[#f97316]">{display}</span>
 
           <button
-            onClick={() => startTimer(seconds + 30)}
+            onClick={() => startTimer(remaining + 30)}
             className="flex items-center gap-1 text-sm text-[#888888] bg-[#242424] px-3 py-1.5 rounded-lg"
           >
             <Plus size={14} /> 30s

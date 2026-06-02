@@ -3,32 +3,36 @@ import { create } from 'zustand'
 
 interface WorkoutStore {
   sessionId: number | null
-  restTimerSeconds: number
-  restTimerTotal: number
+  restTimerStartMs: number | null
+  restTimerDurationMs: number
+  notificationPermissionAsked: boolean
   prExerciseId: number | null
 
   setSessionId: (id: number | null) => void
   startTimer: (seconds: number) => void
-  tickTimer: () => void
   stopTimer: () => void
+  setNotificationPermissionAsked: (asked: boolean) => void
   flashPR: (exerciseId: number) => void
   clearPR: () => void
 }
 
 export const useWorkoutStore = create<WorkoutStore>((set) => ({
   sessionId: null,
-  restTimerSeconds: 0,
-  restTimerTotal: 0,
+  restTimerStartMs: null,
+  restTimerDurationMs: 0,
+  notificationPermissionAsked: false,
   prExerciseId: null,
 
   setSessionId: (id) => set({ sessionId: id }),
 
-  startTimer: (seconds) => set({ restTimerSeconds: seconds, restTimerTotal: seconds }),
+  startTimer: (seconds) => set({
+    restTimerStartMs: Date.now(),
+    restTimerDurationMs: Math.max(0, seconds) * 1000,
+  }),
 
-  tickTimer: () =>
-    set((s) => ({ restTimerSeconds: Math.max(0, s.restTimerSeconds - 1) })),
+  stopTimer: () => set({ restTimerStartMs: null, restTimerDurationMs: 0 }),
 
-  stopTimer: () => set({ restTimerSeconds: 0, restTimerTotal: 0 }),
+  setNotificationPermissionAsked: (asked) => set({ notificationPermissionAsked: asked }),
 
   flashPR: (exerciseId) => {
     set({ prExerciseId: exerciseId })

@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 import { db } from '@/lib/db'
 import { applyProgression } from '@/lib/progression'
-import { useWorkoutStore } from '@/store/workoutStore'
 import type { TemplateExercise, Exercise, SetLog } from '@/types'
 import { ExerciseCard } from '@/components/workout/ExerciseCard'
 import { RestTimer } from '@/components/workout/RestTimer'
@@ -27,8 +26,6 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
   const [workoutLabel, setWorkoutLabel] = useState('')
   const [weekNumber, setWeekNumber] = useState<number | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
-
-  const restSeconds = useWorkoutStore(s => s.restTimerSeconds)
 
   useEffect(() => {
     if (showSummary) return
@@ -140,8 +137,8 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
         </button>
       </div>
 
-      {/* Rest timer overlay */}
-      {restSeconds > 0 && <RestTimer />}
+      {/* Rest timer overlay (RestTimer renders null when inactive) */}
+      <RestTimer />
 
       {/* Summary modal */}
       {showSummary && (
