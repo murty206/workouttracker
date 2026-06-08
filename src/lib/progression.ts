@@ -190,11 +190,18 @@ export async function applyProgression(sessionId: number): Promise<void> {
   const currentTemplate = await db.workoutTemplates.get(session.workoutTemplateId)
   if (!currentTemplate) return
 
+  const program = await db.programs.get(session.programId)
+  if (!program) return
+
   const nextWeek = await db.programWeeks
     .where('[programId+weekNumber]')
     .equals([session.programId, session.weekNumber + 1])
     .first()
   if (!nextWeek) return
+
+  // The deload week (any week past totalWeeks) has intentionally lighter
+  // templates from the seed — don't overwrite them with progression.
+  if (nextWeek.weekNumber > program.totalWeeks) return
 
   const nextTemplate = await db.workoutTemplates
     .where('programWeekId').equals(nextWeek.id!)
@@ -268,11 +275,18 @@ export async function carryForwardWeights(
   templateId: number,
   label: 'A' | 'B' | 'C',
 ): Promise<void> {
+  const program = await db.programs.get(programId)
+  if (!program) return
+
   const nextWeek = await db.programWeeks
     .where('[programId+weekNumber]')
     .equals([programId, weekNumber + 1])
     .first()
   if (!nextWeek) return
+
+  // Skipping a workout in the last training week should not propagate weights
+  // into the deload week — that template is intentionally lighter.
+  if (nextWeek.weekNumber > program.totalWeeks) return
 
   const nextTemplate = await db.workoutTemplates
     .where('programWeekId').equals(nextWeek.id!)
