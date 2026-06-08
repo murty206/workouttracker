@@ -68,7 +68,8 @@ export default function EditWorkoutPage() {
     setWorking(true)
     try {
       const templateIds = await getAllTemplateIds(data.program.id!, label)
-      const lastLog = await db.setLogs
+      const isBw = newExercise.equipmentType === 'bodyweight'
+      const lastLog = isBw ? undefined : await db.setLogs
         .where('exerciseId').equals(newExercise.id!)
         .filter(l => !l.isWarmup && l.weightKg !== null)
         .last()
@@ -80,8 +81,9 @@ export default function EditWorkoutPage() {
         if (te) {
           await db.templateExercises.update(te.id!, {
             exerciseId: newExercise.id!,
-            plannedWeightKg: lastLog?.weightKg ?? null,
+            plannedWeightKg: isBw ? null : (lastLog?.weightKg ?? null),
             warmupWeights: [],
+            ...(isBw ? { plannedReps: 'max' } : {}),
           })
         }
       }
@@ -114,7 +116,8 @@ export default function EditWorkoutPage() {
     try {
       const templateIds = await getAllTemplateIds(data.program.id!, label)
       const currentCount = data.rows.length
-      const lastLog = await db.setLogs
+      const isBw = exercise.equipmentType === 'bodyweight'
+      const lastLog = isBw ? undefined : await db.setLogs
         .where('exerciseId').equals(exercise.id!)
         .filter(l => !l.isWarmup && l.weightKg !== null)
         .last()
@@ -124,8 +127,8 @@ export default function EditWorkoutPage() {
           exerciseId: exercise.id!,
           orderInWorkout: currentCount,
           plannedSets: 3,
-          plannedReps: '10',
-          plannedWeightKg: lastLog?.weightKg ?? null,
+          plannedReps: isBw ? 'max' : '10',
+          plannedWeightKg: isBw ? null : (lastLog?.weightKg ?? null),
           warmupWeights: [],
         })
       }
