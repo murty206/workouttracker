@@ -103,6 +103,20 @@ export function median(values: number[]): number {
 // but lets 25 → 27.5 (+10 %) bump normally.
 const DUMBBELL_DOUBLE_CONFIRM_PCT = 0.15
 
+// Deload week target weight as a fraction of the prior week's lifted median.
+// 0.5 matches Texas Method / 5/3/1 conventions: light enough for recovery,
+// heavy enough to keep the movement pattern grooved.
+const DELOAD_FACTOR = 0.5
+
+export function computeDeloadWeight(
+  basisKg: number,
+  equipmentType: EquipmentType,
+): number {
+  if (basisKg <= 0) return 0
+  const step = equipmentType === 'machine' ? 5 : 2.5
+  return Math.max(0, Math.floor((basisKg * DELOAD_FACTOR) / step) * step)
+}
+
 export interface ProgressionDecision {
   nextWeightKg: number
   readyForBump: boolean
@@ -199,9 +213,7 @@ export async function applyProgression(sessionId: number): Promise<void> {
     .first()
   if (!nextWeek) return
 
-  // The deload week (any week past totalWeeks) has intentionally lighter
-  // templates from the seed — don't overwrite them with progression.
-  if (nextWeek.weekNumber > program.totalWeeks) return
+  const isNextDeload = nextWeek.weekNumber > program.totalWeeks
 
   const nextTemplate = await db.workoutTemplates
     .where('programWeekId').equals(nextWeek.id!)
@@ -231,9 +243,22 @@ export async function applyProgression(sessionId: number): Promise<void> {
 
     if (logs.length === 0) continue
 
+    const basis = median(logs.map(l => l.weightKg!))
+    const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
+    if (!nextTe) continue
+
+    // Deload week: scale the lifted median by DELOAD_FACTOR, no warmups,
+    // and don't touch progression-state flags (they apply to training weeks).
+    if (isNextDeload) {
+      await db.templateExercises.update(nextTe.id!, {
+        plannedWeightKg: computeDeloadWeight(basis, exercise.equipmentType),
+        warmupWeights: [],
+      })
+      continue
+    }
+
     const setReps = logs.map(l => l.reps)
     const result = evaluatePerformance(setReps, scheme)
-    const basis = median(logs.map(l => l.weightKg!))
 
     const decision = decideProgression({
       basisKg: basis,
@@ -254,9 +279,6 @@ export async function applyProgression(sessionId: number): Promise<void> {
         justBumped: decision.justBumped,
       })
     }
-
-    const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
-    if (!nextTe) continue
 
     const nextWarmups = computeWarmupWeights(decision.nextWeightKg, exercise.equipmentType)
     await db.templateExercises.update(nextTe.id!, {

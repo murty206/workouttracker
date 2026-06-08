@@ -7,6 +7,7 @@ import {
   computeWarmupWeights,
   median,
   decideProgression,
+  computeDeloadWeight,
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
@@ -513,5 +514,41 @@ describe('weeklyVolume', () => {
     expect(weeklyVolume([
       { loggedAt: '2026-06-01T10:00:00Z', weightKg: null, reps: 10, isWarmup: false },
     ])).toEqual([])
+  })
+})
+
+// ─── Deload computation ───────────────────────────────────────────────────────
+
+describe('computeDeloadWeight', () => {
+  it('returns 50% of basis floored to 2.5 kg for barbell', () => {
+    expect(computeDeloadWeight(60, 'barbell')).toBe(30)
+    expect(computeDeloadWeight(80, 'barbell')).toBe(40)
+  })
+
+  it('floors down (never up) when the 50% lands between increments', () => {
+    // 17.5 × 0.5 = 8.75 → floor to 7.5 (not 10)
+    expect(computeDeloadWeight(17.5, 'barbell')).toBe(7.5)
+  })
+
+  it('uses 5 kg steps for machines', () => {
+    // 40 × 0.5 = 20 → 20 (already on grid)
+    expect(computeDeloadWeight(40, 'machine')).toBe(20)
+    // 27.5 × 0.5 = 13.75 → floor to 10
+    expect(computeDeloadWeight(27.5, 'machine')).toBe(10)
+  })
+
+  it('uses 2.5 kg steps for dumbbell', () => {
+    // 12.5 × 0.5 = 6.25 → floor to 5
+    expect(computeDeloadWeight(12.5, 'dumbbell')).toBe(5)
+  })
+
+  it('returns 0 for non-positive input', () => {
+    expect(computeDeloadWeight(0, 'barbell')).toBe(0)
+    expect(computeDeloadWeight(-5, 'barbell')).toBe(0)
+  })
+
+  it('returns 0 when 50% rounds below the smallest step', () => {
+    // 2 × 0.5 = 1 → floor to 0
+    expect(computeDeloadWeight(2, 'barbell')).toBe(0)
   })
 })
