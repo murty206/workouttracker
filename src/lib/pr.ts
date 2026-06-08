@@ -15,12 +15,30 @@ export async function detectAndSavePR(
 
   const newE1RM = epley(weightKg, reps)
 
-  const best = await db.personalRecords
+  const existing = await db.personalRecords
     .where('exerciseId').equals(exerciseId)
-    .sortBy('estimatedOneRepMax')
-  const bestE1RM = best.at(-1)?.estimatedOneRepMax ?? 0
+    .toArray()
+  const bestE1RM = existing.reduce((max, pr) => Math.max(max, pr.estimatedOneRepMax), 0)
 
   if (newE1RM <= bestE1RM) return false
+
+  // Intra-session dedup: a session should hold at most one PR record for
+  // each exercise. If a prior set in this session already produced one,
+  // replace it in place rather than stacking records.
+  const sessionPR = existing.find(pr => pr.sessionId === sessionId)
+  if (sessionPR) {
+    await db.personalRecords.update(sessionPR.id!, {
+      weightKg,
+      reps,
+      estimatedOneRepMax: newE1RM,
+      achievedAt: new Date().toISOString(),
+      setLogId,
+    })
+    if (sessionPR.setLogId !== setLogId) {
+      await db.setLogs.update(sessionPR.setLogId, { isPR: false })
+    }
+    return true
+  }
 
   await db.personalRecords.add({
     exerciseId,
