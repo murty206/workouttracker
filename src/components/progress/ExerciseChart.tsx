@@ -11,14 +11,53 @@ interface Props { exerciseId: number }
 
 export function ExerciseChart({ exerciseId }: Props) {
   const exercise = useLiveQuery(() => db.exercises.get(exerciseId), [exerciseId])
+  const isBodyweight = exercise?.equipmentType === 'bodyweight'
 
   const data = useLiveQuery(async () => {
+    if (!exercise) return null
+
+    if (isBodyweight) {
+      const logs = await db.setLogs
+        .where('exerciseId').equals(exerciseId)
+        .filter(l => !l.isWarmup)
+        .sortBy('loggedAt')
+
+      const bySession = new Map<number, {
+        date: string
+        totalReps: number
+        bestSet: number
+        setCount: number
+      }>()
+
+      for (const log of logs) {
+        const date = log.loggedAt.split('T')[0]
+        const existing = bySession.get(log.sessionId)
+        if (!existing) {
+          bySession.set(log.sessionId, {
+            date,
+            totalReps: log.reps,
+            bestSet: log.reps,
+            setCount: 1,
+          })
+          continue
+        }
+        existing.totalReps += log.reps
+        existing.setCount += 1
+        if (log.reps > existing.bestSet) existing.bestSet = log.reps
+      }
+
+      return Array.from(bySession.values()).map(d => ({
+        date: d.date,
+        totalReps: d.totalReps,
+        label: `${d.setCount} sets · best ${d.bestSet}`,
+      }))
+    }
+
     const logs = await db.setLogs
       .where('exerciseId').equals(exerciseId)
       .filter(l => !l.isWarmup && l.weightKg !== null)
       .sortBy('loggedAt')
 
-    // Group by session: best e1RM (from sets with 1-10 reps) and total volume
     const bySession = new Map<number, {
       date: string
       e1rm: number
@@ -59,7 +98,7 @@ export function ExerciseChart({ exerciseId }: Props) {
       volume: Math.round(d.volume),
       label: `${d.bestWeight} kg × ${d.bestReps}`,
     }))
-  }, [exerciseId])
+  }, [exerciseId, isBodyweight, exercise])
 
   const prs = useLiveQuery(() =>
     db.personalRecords.where('exerciseId').equals(exerciseId).sortBy('achievedAt'),
@@ -70,6 +109,60 @@ export function ExerciseChart({ exerciseId }: Props) {
     return <p className="text-[#888888] text-sm text-center py-4">No data yet</p>
   }
 
+  if (isBodyweight) {
+    const bwData = data as { date: string; totalReps: number; label: string }[]
+    const bestTotal = Math.max(...bwData.map(d => d.totalReps))
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">{exercise?.name}</p>
+          <p className="text-xs text-[#888888]">Total reps · per session</p>
+        </div>
+
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={bwData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: '#888888', fontSize: 10 }}
+              tickFormatter={d => {
+                const dt = new Date(d)
+                return `${dt.getDate()}/${dt.getMonth() + 1}`
+              }}
+            />
+            <YAxis
+              tick={{ fill: '#f97316', fontSize: 10 }}
+              domain={['auto', 'auto']}
+            />
+            <Tooltip
+              contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
+              labelStyle={{ color: '#888888', fontSize: 11 }}
+              formatter={(value, _name, props) => [
+                `${value} reps (${props.payload.label})`,
+                'Total',
+              ]}
+              labelFormatter={d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            />
+            <Line
+              type="monotone"
+              dataKey="totalReps"
+              stroke="#f97316"
+              strokeWidth={2}
+              dot={{ fill: '#f97316', r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#888888]">Best session</span>
+          <span className="text-[#22c55e] font-semibold">{bestTotal} reps</span>
+        </div>
+      </div>
+    )
+  }
+
+  const weightedData = data as { date: string; e1rm: number | null; volume: number; label: string }[]
   const unit = exercise?.weightDisplay === 'total' ? 'kg' : 'kg/side'
 
   return (
@@ -80,7 +173,7 @@ export function ExerciseChart({ exerciseId }: Props) {
       </div>
 
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+        <LineChart data={weightedData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
           <XAxis
             dataKey="date"
