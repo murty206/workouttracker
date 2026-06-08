@@ -62,6 +62,19 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(5).stores({}).upgrade(async tx => {
+      // Dumbbell rack increments are physically 2.5 kg per dumbbell (no
+      // 1.25 kg microplates). Fix the per-exercise incrementKg and init the
+      // new progression-state flags to false.
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        if (ex.equipmentType === 'dumbbell') {
+          ex.incrementKg = 2.5
+        }
+        if (ex.readyForBump === undefined) ex.readyForBump = false
+        if (ex.justBumped === undefined) ex.justBumped = false
+      })
+    })
   }
 }
 

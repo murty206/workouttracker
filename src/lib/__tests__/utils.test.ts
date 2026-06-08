@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { plateMath, plateBreakdownLabel } from '../plates'
 import { epley, dotsScore } from '../score'
-import { parseRepScheme, evaluatePerformance, computeWarmupWeights, median } from '../progression'
+import {
+  parseRepScheme,
+  evaluatePerformance,
+  computeWarmupWeights,
+  median,
+  decideProgression,
+} from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
@@ -124,55 +130,195 @@ describe('parseRepScheme', () => {
 
 // ─── Progression evaluation ───────────────────────────────────────────────────
 
-describe('evaluatePerformance', () => {
-  // 3 sets × 8-12 reps → target max = 36, target min = 3×8×0.8 = 19.2
+describe('evaluatePerformance — standard scheme (8-12)', () => {
   const scheme = { lower: 8, upper: 12, isAmrap: false }
-  const sets = 3
 
-  it('INCREASE when all sets hit upper rep target (36 reps)', () => {
-    expect(evaluatePerformance(36, sets, scheme)).toBe('INCREASE')
+  it('INCREASE when every set hits the upper exactly', () => {
+    expect(evaluatePerformance([12, 12, 12], scheme)).toBe('INCREASE')
   })
 
-  it('INCREASE when reps exceed upper target', () => {
-    expect(evaluatePerformance(40, sets, scheme)).toBe('INCREASE')
+  it('INCREASE when every set ≥ upper but only one set exceeds it', () => {
+    expect(evaluatePerformance([13, 12, 12], scheme)).toBe('INCREASE')
   })
 
-  it('SAME when reps are in the middle range', () => {
-    expect(evaluatePerformance(27, sets, scheme)).toBe('SAME')
+  it('INCREASE_2 when every set ≥ upper AND ≥2 sets exceed', () => {
+    expect(evaluatePerformance([13, 13, 12], scheme)).toBe('INCREASE_2')
+    expect(evaluatePerformance([15, 14, 13], scheme)).toBe('INCREASE_2')
   })
 
-  it('SAME at exactly the minimum threshold (19.2 → 20)', () => {
-    expect(evaluatePerformance(20, sets, scheme)).toBe('SAME')
+  it('SAME when reps land inside the range without hitting upper on every set', () => {
+    expect(evaluatePerformance([10, 11, 12], scheme)).toBe('SAME')
+    expect(evaluatePerformance([9, 9, 9], scheme)).toBe('SAME')
   })
 
-  it('DECREASE when reps fall below 80% of lower range', () => {
-    expect(evaluatePerformance(18, sets, scheme)).toBe('DECREASE')
+  it('SAME when one set falls to the lower bound but no set is below it', () => {
+    expect(evaluatePerformance([8, 12, 12], scheme)).toBe('SAME')
   })
 
-  it('DECREASE when reps are very low', () => {
-    expect(evaluatePerformance(5, sets, scheme)).toBe('DECREASE')
+  it('DECREASE when the worst set drops below lower', () => {
+    expect(evaluatePerformance([7, 12, 12], scheme)).toBe('DECREASE')
+    expect(evaluatePerformance([3, 3, 3], scheme)).toBe('DECREASE')
+  })
+})
+
+describe('evaluatePerformance — fixed scheme (5×5)', () => {
+  const fixed = { lower: 5, upper: 5, isAmrap: false }
+
+  it('INCREASE when all sets exactly hit target', () => {
+    expect(evaluatePerformance([5, 5, 5, 5, 5], fixed)).toBe('INCREASE')
   })
 
-  it('handles fixed rep scheme (5×5)', () => {
-    const fixed = { lower: 5, upper: 5, isAmrap: false }
-    expect(evaluatePerformance(25, 5, fixed)).toBe('INCREASE')
-    expect(evaluatePerformance(22, 5, fixed)).toBe('SAME')
-    expect(evaluatePerformance(18, 5, fixed)).toBe('DECREASE')
+  it('INCREASE_2 when ≥2 sets exceed target', () => {
+    expect(evaluatePerformance([6, 6, 5, 5, 5], fixed)).toBe('INCREASE_2')
   })
 
-  it('handles open-ended AMRAP scheme ("5+") using 1.5× lower as effective upper', () => {
-    // effective upper = Math.round(5 * 1.5) = 8 → target max = 3 × 8 = 24; target min = 3×5×0.8 = 12
-    const openScheme = { lower: 5, upper: null, isAmrap: true }
-    expect(evaluatePerformance(24, 3, openScheme)).toBe('INCREASE')
-    expect(evaluatePerformance(15, 3, openScheme)).toBe('SAME')
-    expect(evaluatePerformance(11, 3, openScheme)).toBe('DECREASE')
+  it('DECREASE on any set below target', () => {
+    expect(evaluatePerformance([4, 5, 5, 5, 5], fixed)).toBe('DECREASE')
+  })
+})
+
+describe('evaluatePerformance — AMRAP (5+)', () => {
+  const amrap = { lower: 5, upper: null, isAmrap: true }
+
+  it('DECREASE when last set is below lower', () => {
+    expect(evaluatePerformance([5, 5, 5, 4], amrap)).toBe('DECREASE')
   })
 
-  it('isAmrap=false with upper=null falls back to lower as effective upper', () => {
-    // For a malformed fixed scheme this keeps deterministic behavior.
-    const scheme = { lower: 5, upper: null, isAmrap: false }
-    expect(evaluatePerformance(15, 3, scheme)).toBe('INCREASE') // 5*3 = 15
-    expect(evaluatePerformance(11, 3, scheme)).toBe('DECREASE')
+  it('SAME when last set ≥ lower but < 1.5× lower', () => {
+    expect(evaluatePerformance([5, 5, 5, 6], amrap)).toBe('SAME')
+    expect(evaluatePerformance([5, 5, 5, 7], amrap)).toBe('SAME') // 5*1.5 = 7.5, 7 < 7.5
+  })
+
+  it('INCREASE when last set ≥ 1.5× lower', () => {
+    expect(evaluatePerformance([5, 5, 5, 8], amrap)).toBe('INCREASE') // 8 ≥ 7.5
+  })
+
+  it('INCREASE_2 when last set ≥ 2× lower (the AMRAP overshoot)', () => {
+    expect(evaluatePerformance([5, 5, 5, 10], amrap)).toBe('INCREASE_2')
+    expect(evaluatePerformance([7, 7, 7, 20], { lower: 7, upper: null, isAmrap: true }))
+      .toBe('INCREASE_2') // 20 ≥ 14, Squat 22.5×20 scenario
+  })
+})
+
+describe('evaluatePerformance — empty input', () => {
+  it('returns SAME when no reps were logged', () => {
+    expect(evaluatePerformance([], { lower: 5, upper: 5, isAmrap: false })).toBe('SAME')
+  })
+})
+
+describe('decideProgression — barbell (no double-confirm needed)', () => {
+  const base = {
+    incrementKg: 2.5,
+    equipmentType: 'barbell' as const,
+    readyForBump: false,
+    justBumped: false,
+  }
+
+  it('INCREASE bumps by one increment', () => {
+    expect(decideProgression({ ...base, basisKg: 50, result: 'INCREASE' })).toMatchObject({
+      nextWeightKg: 52.5,
+      readyForBump: false,
+      justBumped: false,
+    })
+  })
+
+  it('INCREASE_2 bumps by two increments', () => {
+    expect(decideProgression({ ...base, basisKg: 50, result: 'INCREASE_2' })).toMatchObject({
+      nextWeightKg: 55,
+    })
+  })
+
+  it('DECREASE drops one increment', () => {
+    expect(decideProgression({ ...base, basisKg: 50, result: 'DECREASE' })).toMatchObject({
+      nextWeightKg: 47.5,
+    })
+  })
+
+  it('SAME keeps the basis', () => {
+    expect(decideProgression({ ...base, basisKg: 50, result: 'SAME' })).toMatchObject({
+      nextWeightKg: 50,
+    })
+  })
+})
+
+describe('decideProgression — dumbbell double-confirmation', () => {
+  const lightDB = {
+    basisKg: 5,
+    incrementKg: 2.5,
+    equipmentType: 'dumbbell' as const,
+    justBumped: false,
+  }
+
+  it('first INCREASE on a big-jump dumbbell stays at basis and arms ready flag', () => {
+    expect(decideProgression({ ...lightDB, result: 'INCREASE', readyForBump: false }))
+      .toMatchObject({
+        nextWeightKg: 5,
+        readyForBump: true,
+        justBumped: false,
+      })
+  })
+
+  it('second INCREASE confirms the bump and sets grace flag', () => {
+    expect(decideProgression({ ...lightDB, result: 'INCREASE', readyForBump: true }))
+      .toMatchObject({
+        nextWeightKg: 7.5,
+        readyForBump: false,
+        justBumped: true,
+      })
+  })
+
+  it('big jump applies to INCREASE_2 too', () => {
+    // 5 + 5 = 10 (+100%) — still requires double-confirm
+    expect(decideProgression({ ...lightDB, result: 'INCREASE_2', readyForBump: false }))
+      .toMatchObject({ nextWeightKg: 5, readyForBump: true })
+    expect(decideProgression({ ...lightDB, result: 'INCREASE_2', readyForBump: true }))
+      .toMatchObject({ nextWeightKg: 10, readyForBump: false, justBumped: true })
+  })
+
+  it('SAME clears a pending ready flag (no free confirmation from a middle-range session)', () => {
+    expect(decideProgression({ ...lightDB, result: 'SAME', readyForBump: true }))
+      .toMatchObject({ nextWeightKg: 5, readyForBump: false })
+  })
+
+  it('larger dumbbells (>15% jump bar) bump normally without double-confirm', () => {
+    // 25 kg DB + 2.5 = +10 % → bump in one go
+    expect(decideProgression({
+      basisKg: 25,
+      incrementKg: 2.5,
+      equipmentType: 'dumbbell',
+      result: 'INCREASE',
+      readyForBump: false,
+      justBumped: false,
+    })).toMatchObject({ nextWeightKg: 27.5, readyForBump: false, justBumped: false })
+  })
+})
+
+describe('decideProgression — grace period after a bump', () => {
+  it('DECREASE right after a bump becomes SAME (one-session grace)', () => {
+    expect(decideProgression({
+      basisKg: 7.5,
+      incrementKg: 2.5,
+      equipmentType: 'dumbbell',
+      result: 'DECREASE',
+      readyForBump: false,
+      justBumped: true,
+    })).toMatchObject({
+      nextWeightKg: 7.5,
+      readyForBump: false,
+      justBumped: false,
+      reason: 'grace',
+    })
+  })
+
+  it('DECREASE without grace drops one increment', () => {
+    expect(decideProgression({
+      basisKg: 7.5,
+      incrementKg: 2.5,
+      equipmentType: 'dumbbell',
+      result: 'DECREASE',
+      readyForBump: false,
+      justBumped: false,
+    })).toMatchObject({ nextWeightKg: 5, justBumped: false })
   })
 })
 

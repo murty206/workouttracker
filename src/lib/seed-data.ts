@@ -49,7 +49,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": ["Over Head Press", "Lateral Raises"]
   },
@@ -59,7 +59,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": ["Dumbbell Lunges", "Squat"]
   },
@@ -79,7 +79,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": ["Squat", "Dumbbell Romanian Deadlift"]
   },
@@ -119,7 +119,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": ["DB Shoulder Press"]
   },
@@ -129,7 +129,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": []
   },
@@ -179,7 +179,7 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "primaryMuscle": "general",
     "equipmentType": "dumbbell",
     "weightDisplay": "per-side",
-    "incrementKg": 1.25,
+    "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": []
   },

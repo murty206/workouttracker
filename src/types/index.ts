@@ -1,7 +1,7 @@
 export type EquipmentType = 'barbell' | 'dumbbell' | 'machine' | 'bodyweight'
 export type WeightDisplay = 'per-side' | 'total' | 'none'
 export type WorkoutLabel = 'A' | 'B' | 'C'
-export type ProgressionResult = 'INCREASE' | 'SAME' | 'DECREASE'
+export type ProgressionResult = 'INCREASE' | 'INCREASE_2' | 'SAME' | 'DECREASE'
 
 export interface Exercise {
   id?: number
@@ -15,6 +15,15 @@ export interface Exercise {
   alternativeExerciseIds: number[]
   isCustom: boolean
   notes?: string
+  // Internal progression state — managed by applyProgression, not the UI.
+  // readyForBump: first time we hit the upper rep target on a dumbbell where
+  // the next weight would be a >15% jump — algorithm holds the bump until
+  // the user confirms on a second consecutive session.
+  // justBumped: last applyProgression actually bumped this exercise; grants
+  // a one-session DECREASE grace so the user doesn't oscillate around a
+  // big jump.
+  readyForBump?: boolean
+  justBumped?: boolean
 }
 
 export interface UserPref {
