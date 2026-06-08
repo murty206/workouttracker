@@ -93,6 +93,24 @@ export class WorkoutDB extends Dexie {
         if (pr.prType === undefined) pr.prType = 'strength'
       })
     })
+
+    this.version(8).stores({}).upgrade(async tx => {
+      // Bodyweight exercises have no weight to progress and use a "max" rep
+      // scheme by convention. Any templateExercise pointing at a bodyweight
+      // exercise that ended up with a numeric rep scheme (e.g. swapped from
+      // a weighted lift) gets reset to the bodyweight defaults.
+      const bwExercises = await tx.table('exercises')
+        .filter((ex: Exercise) => ex.equipmentType === 'bodyweight')
+        .toArray()
+      const bwIds = new Set(bwExercises.map((ex: Exercise) => ex.id))
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (bwIds.has(te.exerciseId)) {
+          te.plannedReps = 'max'
+          te.plannedWeightKg = null
+          te.warmupWeights = []
+        }
+      })
+    })
   }
 }
 
