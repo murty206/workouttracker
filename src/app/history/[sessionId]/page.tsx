@@ -111,10 +111,15 @@ export default function SessionDetailPage() {
       {exercises.length === 0 ? (
         <p className="text-[#888888] text-sm text-center py-8">No sets logged</p>
       ) : (
-        exercises.map(({ exercise, logs }) => (
+        exercises.map(({ exercise, logs }) => {
+          const setupNote = logs.find(l => l.setupNote)?.setupNote
+          return (
           <div key={exercise.id} className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
             <div className="px-4 py-3 border-b border-[#2a2a2a]">
               <p className="text-sm font-semibold">{exercise.name}</p>
+              {setupNote && (
+                <p className="text-xs text-[#888888] italic mt-0.5">Setup: {setupNote}</p>
+              )}
             </div>
 
             {/* Action menu */}
@@ -181,7 +186,8 @@ export default function SessionDetailPage() {
               })}
             </div>
           </div>
-        ))
+          )
+        })
       )}
     </div>
   )

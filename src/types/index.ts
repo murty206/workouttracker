@@ -24,6 +24,11 @@ export interface Exercise {
   // big jump.
   readyForBump?: boolean
   justBumped?: boolean
+  // True for exercises whose performance depends on a physical setup the user
+  // chooses each session (e.g. inverted row bar height). Surfaces a small
+  // "setup note" input above the working sets; the string is saved on each
+  // SetLog for that session.
+  requiresSetupNote?: boolean
 }
 
 export interface UserPref {
@@ -86,6 +91,7 @@ export interface SetLog {
   isWarmup: boolean
   isPR: boolean
   loggedAt: string
+  setupNote?: string
 }
 
 export interface PersonalRecord {

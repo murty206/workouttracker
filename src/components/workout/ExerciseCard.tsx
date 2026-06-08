@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Trophy, SkipForward, X, MoreHorizontal } from 'lucide-react'
 import { db } from '@/lib/db'
 import { detectAndSavePR, rebuildPRsForExercise } from '@/lib/pr'
@@ -47,6 +47,30 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
     (parseInt(te.plannedReps) || 8).toString()
   )
 
+  // Setup note: sticky across sessions for exercises that need it. Default to
+  // the most recent setupNote on any logged set for this exercise.
+  const [setupNote, setSetupNote] = useState<string>('')
+  useEffect(() => {
+    if (!exercise.requiresSetupNote) return
+    const existingFromSession = sessionLogs.find(l => l.setupNote)?.setupNote
+    if (existingFromSession) {
+      setSetupNote(existingFromSession)
+      return
+    }
+    let cancelled = false
+    db.setLogs
+      .where('exerciseId').equals(exercise.id!)
+      .filter(l => !!l.setupNote)
+      .reverse()
+      .sortBy('loggedAt')
+      .then(logs => {
+        if (cancelled) return
+        const prev = logs[0]?.setupNote
+        if (prev) setSetupNote(prev)
+      })
+    return () => { cancelled = true }
+  }, [exercise.id, exercise.requiresSetupNote, sessionLogs])
+
   const parsedWeight = parseFloat(currentWeight)
   const plateBreakdown = exercise.equipmentType === 'barbell' && !isNaN(parsedWeight) && parsedWeight > 0
     ? plateBreakdownLabel(parsedWeight)
@@ -54,6 +78,7 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
 
   async function handleLogSet(weight: number | null, reps: number) {
     const setNumber = workingSets.length + 1
+    const trimmedSetupNote = exercise.requiresSetupNote ? setupNote.trim() : ''
     const setLogId = await db.setLogs.add({
       sessionId,
       exerciseId: exercise.id!,
@@ -63,6 +88,7 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
       isWarmup: false,
       isPR: false,
       loggedAt: new Date().toISOString(),
+      ...(trimmedSetupNote ? { setupNote: trimmedSetupNote } : {}),
     })
     if (weight !== null) {
       const isNewPR = await detectAndSavePR(exercise.id!, weight, reps, sessionId, setLogId as number)
@@ -169,6 +195,19 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
         </div>
 
       </div>
+
+      {/* Setup note (e.g. inverted row bar height) */}
+      {exercise.requiresSetupNote && (
+        <div className="px-4 pb-3 border-t border-[#2a2a2a] pt-3">
+          <input
+            type="text"
+            value={setupNote}
+            onChange={e => setSetupNote(e.target.value)}
+            placeholder="Setup note (e.g. bar height: chest)"
+            className="w-full bg-[#242424] text-sm text-[#f5f5f5] placeholder-[#555555] rounded-lg px-3 py-2 border border-[#2a2a2a] focus:border-[#f97316] outline-none"
+          />
+        </div>
+      )}
 
       {/* Warmup checklist */}
       {te.warmupWeights.length > 0 && (

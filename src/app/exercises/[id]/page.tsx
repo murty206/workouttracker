@@ -31,6 +31,7 @@ export default function ExerciseEditPage() {
   const [restSeconds, setRestSeconds] = useState(90)
   const [notes, setNotes] = useState('')
   const [altIds, setAltIds] = useState<number[]>([])
+  const [requiresSetupNote, setRequiresSetupNote] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -44,6 +45,7 @@ export default function ExerciseEditPage() {
       setRestSeconds(exercise.restSeconds)
       setNotes(exercise.notes ?? '')
       setAltIds(exercise.alternativeExerciseIds)
+      setRequiresSetupNote(exercise.requiresSetupNote ?? false)
       setInitialized(true)
     }
   }, [exercise, initialized])
@@ -71,6 +73,7 @@ export default function ExerciseEditPage() {
         restSeconds,
         alternativeExerciseIds: altIds,
         notes: notes.trim() || undefined,
+        requiresSetupNote,
       }
       if (isNew) {
         await db.exercises.add({ ...data, category: 'strength', primaryMuscle: 'general', isCustom: true })
@@ -179,6 +182,20 @@ export default function ExerciseEditPage() {
             className="w-full bg-transparent text-sm mt-1 outline-none resize-none"
           />
         </div>
+
+        {/* Setup note toggle */}
+        <button
+          onClick={() => setRequiresSetupNote(v => !v)}
+          className="w-full bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] px-4 py-3 flex items-center justify-between"
+        >
+          <div className="text-left">
+            <p className="text-sm font-medium">Setup note per session</p>
+            <p className="text-xs text-[#888888] mt-0.5">e.g. bar height for inverted row</p>
+          </div>
+          <div className={`w-10 h-6 rounded-full relative transition-colors ${requiresSetupNote ? 'bg-[#f97316]' : 'bg-[#444444]'}`}>
+            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${requiresSetupNote ? 'left-[18px]' : 'left-0.5'}`} />
+          </div>
+        </button>
 
         {/* Alternatives */}
         {otherExercises.length > 0 && (

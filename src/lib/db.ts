@@ -75,6 +75,16 @@ export class WorkoutDB extends Dexie {
         if (ex.justBumped === undefined) ex.justBumped = false
       })
     })
+
+    this.version(6).stores({}).upgrade(async tx => {
+      // Mark exercises whose performance depends on a physical setup the user
+      // chooses each session (currently just Inverted Row — bar height).
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        if (ex.requiresSetupNote === undefined) {
+          ex.requiresSetupNote = ex.name === 'Inverted Row'
+        }
+      })
+    })
   }
 }
 

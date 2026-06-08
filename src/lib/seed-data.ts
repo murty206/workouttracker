@@ -10,6 +10,7 @@ export interface SeedExercise {
   incrementKg: number
   isCustom: boolean
   alternativeExerciseNames: string[]
+  requiresSetupNote?: boolean
 }
 
 export interface SeedTemplateExercise {
@@ -211,7 +212,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "none",
     "incrementKg": 0,
     "isCustom": false,
-    "alternativeExerciseNames": ["Negative Pull Ups", "Lat Pulldown", "Barbell Row"]
+    "alternativeExerciseNames": ["Negative Pull Ups", "Lat Pulldown", "Barbell Row"],
+    "requiresSetupNote": true
   }
 ]
 
