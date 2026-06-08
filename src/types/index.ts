@@ -1,4 +1,4 @@
-export type EquipmentType = 'barbell' | 'dumbbell' | 'machine' | 'bodyweight'
+export type EquipmentType = 'barbell' | 'dumbbell' | 'machine' | 'bodyweight' | 'cardio'
 export type WeightDisplay = 'per-side' | 'total' | 'none'
 export type WorkoutLabel = 'A' | 'B' | 'C'
 export type ProgressionResult = 'INCREASE' | 'INCREASE_2' | 'SAME' | 'DECREASE'
@@ -67,6 +67,13 @@ export interface TemplateExercise {
   plannedWeightKg: number | null
   warmupWeights: number[]
   note?: string
+  // Cardio-only prescription. Set when the linked exercise has
+  // equipmentType='cardio'; ignored otherwise. The lifting fields above
+  // (plannedSets/Reps/WeightKg/warmupWeights) are kept as their defaults
+  // (1, 'max', null, []) for cardio rows.
+  cardioDurationMin?: number
+  cardioInclinePct?: number
+  cardioSpeedKmh?: number
 }
 
 export interface Session {

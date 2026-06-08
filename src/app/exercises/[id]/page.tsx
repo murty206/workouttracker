@@ -11,6 +11,7 @@ const weightDisplayFor: Record<EquipmentType, WeightDisplay> = {
   dumbbell: 'per-side',
   machine: 'total',
   bodyweight: 'none',
+  cardio: 'none',
 }
 
 export default function ExerciseEditPage() {

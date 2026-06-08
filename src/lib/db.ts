@@ -143,6 +143,51 @@ export class WorkoutDB extends Dexie {
         })
       }
     })
+
+    this.version(10).stores({}).upgrade(async tx => {
+      // Cardio: add the "Incline Walk" exercise + a per-workout cardio
+      // TemplateExercise pinned to every existing A/B/C template. Skips
+      // anything that already exists so re-running is safe.
+      const inclineWalkExisting = await tx.table('exercises')
+        .filter((ex: Exercise) => ex.name === 'Incline Walk')
+        .first()
+      let inclineWalkId: number | undefined = inclineWalkExisting?.id
+      if (!inclineWalkId) {
+        inclineWalkId = await tx.table('exercises').add({
+          name: 'Incline Walk',
+          category: 'cardio',
+          primaryMuscle: 'general',
+          equipmentType: 'cardio',
+          weightDisplay: 'none',
+          incrementKg: 0,
+          restSeconds: 0,
+          alternativeExerciseIds: [],
+          isCustom: false,
+          requiresSetupNote: false,
+        } as Exercise)
+      }
+
+      const allTemplates = await tx.table('workoutTemplates').toArray()
+      for (const tmpl of allTemplates) {
+        const existing = await tx.table('templateExercises')
+          .where('workoutTemplateId').equals(tmpl.id)
+          .filter((te: TemplateExercise) => te.exerciseId === inclineWalkId)
+          .first()
+        if (existing) continue
+        await tx.table('templateExercises').add({
+          workoutTemplateId: tmpl.id,
+          exerciseId: inclineWalkId!,
+          orderInWorkout: 100,
+          plannedSets: 1,
+          plannedReps: 'max',
+          plannedWeightKg: null,
+          warmupWeights: [],
+          cardioDurationMin: 30,
+          cardioInclinePct: 7,
+          cardioSpeedKmh: 5,
+        } as TemplateExercise)
+      }
+    })
   }
 }
 

@@ -24,6 +24,11 @@ export default function SessionDetailPage() {
 
     const logs = await db.setLogs.where('sessionId').equals(sessionId).sortBy('setNumber')
 
+    const tes = session.workoutTemplateId
+      ? await db.templateExercises.where('workoutTemplateId').equals(session.workoutTemplateId).toArray()
+      : []
+    const teByExerciseId = new Map(tes.map(te => [te.exerciseId, te]))
+
     const exerciseOrder: number[] = []
     const byExercise = new Map<number, typeof logs>()
     for (const log of logs) {
@@ -39,7 +44,7 @@ export default function SessionDetailPage() {
     const exercises = await Promise.all(
       exerciseOrder.map(async id => {
         const exercise = await db.exercises.get(id)
-        return { exercise: exercise!, logs: byExercise.get(id)! }
+        return { exercise: exercise!, logs: byExercise.get(id)!, te: teByExerciseId.get(id) }
       })
     )
 
@@ -112,7 +117,20 @@ export default function SessionDetailPage() {
       {exercises.length === 0 ? (
         <p className="text-[#888888] text-sm text-center py-8">No sets logged</p>
       ) : (
-        exercises.map(({ exercise, logs }) => {
+        exercises.map(({ exercise, logs, te }) => {
+          if (exercise.equipmentType === 'cardio') {
+            return (
+              <div key={exercise.id} className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">{exercise.name}</p>
+                  <p className="text-xs text-[#888888] mt-0.5 tabular-nums">
+                    {te?.cardioDurationMin ?? 30} min · {te?.cardioInclinePct ?? '—'}% · {te?.cardioSpeedKmh ?? '—'} km/h
+                  </p>
+                </div>
+                <span className="text-xs text-[#22c55e] font-semibold">Completed</span>
+              </div>
+            )
+          }
           const setupNote = logs.find(l => l.setupNote)?.setupNote
           const vol = Math.round(totalVolume(logs))
           return (

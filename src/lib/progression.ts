@@ -117,6 +117,60 @@ export function computeDeloadWeight(
   return Math.max(0, Math.floor((basisKg * DELOAD_FACTOR) / step) * step)
 }
 
+// ─── Cardio progression ───────────────────────────────────────────────────────
+
+export const CARDIO_INCLINE_CAP_PCT = 12
+export const CARDIO_SPEED_CAP_KMH = 5.5
+export const CARDIO_INCLINE_STEP_PCT = 0.5
+export const CARDIO_SPEED_STEP_KMH = 0.25
+
+export interface CardioPrescription {
+  durationMin: number
+  inclinePct: number
+  speedKmh: number
+}
+
+// Round to two decimals to absorb 0.1+0.2-style float drift; speed steps
+// of 0.25 need two-decimal precision, incline steps of 0.5 fit too.
+function r2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+// Apply one rotation step from `current` for week `nextWeekN`.
+// Even weeks (W2, W4, …) are "incline weeks" — bump incline first; if at
+// the cap, fall through to speed. Odd weeks (W3, W5, …) are "speed weeks"
+// — symmetric. Duration is left untouched (user-set fixed cap of 30 min).
+//
+// `anyTicks`: was at least one cardio bout completed last week? If false,
+// the prescription stays put. `isDeload`: next week is the deload — stays
+// put too (deload doesn't apply to cardio per the user's spec).
+export function computeNextCardio(
+  current: CardioPrescription,
+  nextWeekN: number,
+  anyTicks: boolean,
+  isDeload: boolean,
+): CardioPrescription {
+  if (!anyTicks || isDeload) return { ...current }
+
+  const isInclineWeek = nextWeekN % 2 === 0
+  const inclineNew = r2(Math.min(current.inclinePct + CARDIO_INCLINE_STEP_PCT, CARDIO_INCLINE_CAP_PCT))
+  const speedNew = r2(Math.min(current.speedKmh + CARDIO_SPEED_STEP_KMH, CARDIO_SPEED_CAP_KMH))
+
+  if (isInclineWeek) {
+    if (inclineNew > current.inclinePct) {
+      return { ...current, inclinePct: inclineNew }
+    }
+    // Incline at cap → fall through to speed
+    return { ...current, speedKmh: speedNew }
+  } else {
+    if (speedNew > current.speedKmh) {
+      return { ...current, speedKmh: speedNew }
+    }
+    // Speed at cap → fall through to incline
+    return { ...current, inclinePct: inclineNew }
+  }
+}
+
 export interface ProgressionDecision {
   nextWeightKg: number
   readyForBump: boolean
@@ -231,7 +285,9 @@ export async function applyProgression(sessionId: number): Promise<void> {
 
   for (const te of templateExercises) {
     const exercise = await db.exercises.get(te.exerciseId)
-    if (!exercise || exercise.equipmentType === 'bodyweight') continue
+    if (!exercise) continue
+    if (exercise.equipmentType === 'bodyweight') continue
+    if (exercise.equipmentType === 'cardio') continue // handled separately below
 
     const scheme = parseRepScheme(te.plannedReps)
     if (!scheme) continue
@@ -286,6 +342,68 @@ export async function applyProgression(sessionId: number): Promise<void> {
       warmupWeights: nextWarmups,
     })
   }
+
+  // Cardio progression — runs once per session, idempotent across the
+  // week. Bumps next-week's cardio prescription if ≥1 cardio bout was
+  // ticked in any completed session of this week. Deload week (W13)
+  // inherits W12's prescription unchanged.
+  const cardioExercises = await db.exercises
+    .filter(ex => ex.equipmentType === 'cardio')
+    .toArray()
+  const cardioExId = cardioExercises[0]?.id
+  if (cardioExId) {
+    const currentCardioTe = templateExercises.find(te => te.exerciseId === cardioExId)
+    if (currentCardioTe) {
+      const current: CardioPrescription = {
+        durationMin: currentCardioTe.cardioDurationMin ?? 30,
+        inclinePct: currentCardioTe.cardioInclinePct ?? 7,
+        speedKmh: currentCardioTe.cardioSpeedKmh ?? 5,
+      }
+
+      const currentWeek = await db.programWeeks
+        .where('[programId+weekNumber]')
+        .equals([session.programId, session.weekNumber])
+        .first()
+      if (currentWeek) {
+        const weekTemplates = await db.workoutTemplates
+          .where('programWeekId').equals(currentWeek.id!)
+          .toArray()
+        const weekTemplateIds = weekTemplates.map(t => t.id!)
+        const weekSessions = await db.sessions
+          .where('workoutTemplateId').anyOf(weekTemplateIds)
+          .filter(s => !!s.completedAt && !s.skipped)
+          .toArray()
+
+        let anyTicks = false
+        for (const s of weekSessions) {
+          const tick = await db.setLogs
+            .where('sessionId').equals(s.id!)
+            .filter(l => l.exerciseId === cardioExId && !l.isWarmup)
+            .first()
+          if (tick) { anyTicks = true; break }
+        }
+
+        const next = computeNextCardio(current, nextWeek.weekNumber, anyTicks, isNextDeload)
+
+        const nextWeekTemplates = await db.workoutTemplates
+          .where('programWeekId').equals(nextWeek.id!)
+          .toArray()
+        for (const nextTmpl of nextWeekTemplates) {
+          const nextCardioTe = await db.templateExercises
+            .where('workoutTemplateId').equals(nextTmpl.id!)
+            .filter(te => te.exerciseId === cardioExId)
+            .first()
+          if (nextCardioTe) {
+            await db.templateExercises.update(nextCardioTe.id!, {
+              cardioDurationMin: next.durationMin,
+              cardioInclinePct: next.inclinePct,
+              cardioSpeedKmh: next.speedKmh,
+            })
+          }
+        }
+      }
+    }
+  }
 }
 
 // Copy this template's planned weights into the next-week same-label template
@@ -325,11 +443,24 @@ export async function carryForwardWeights(
     .toArray()
 
   for (const te of templateExercises) {
-    if (te.plannedWeightKg === null) continue
     const nextTe = nextTemplateExercises.find(x => x.exerciseId === te.exerciseId)
     if (!nextTe) continue
     const exercise = await db.exercises.get(te.exerciseId)
     if (!exercise) continue
+
+    // Cardio rows: copy the prescription so a fully-skipped week doesn't
+    // reset cardio to the original seed. Strength fields stay null on
+    // cardio rows, so the rest of this branch is skipped.
+    if (exercise.equipmentType === 'cardio') {
+      await db.templateExercises.update(nextTe.id!, {
+        cardioDurationMin: te.cardioDurationMin,
+        cardioInclinePct: te.cardioInclinePct,
+        cardioSpeedKmh: te.cardioSpeedKmh,
+      })
+      continue
+    }
+
+    if (te.plannedWeightKg === null) continue
     const warmups = computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType)
     await db.templateExercises.update(nextTe.id!, {
       plannedWeightKg: te.plannedWeightKg,

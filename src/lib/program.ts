@@ -150,6 +150,12 @@ export async function restartProgram(): Promise<void> {
             plannedReps: te.plannedReps,
             plannedWeightKg: lastLog?.weightKg ?? te.plannedWeightKg,
             warmupWeights: te.warmupWeights,
+            // Cardio fields carry per-week. New W1's cardio inherits old
+            // W1's seed value (30/7/5), so progression effectively
+            // re-rotates from the start on restart.
+            cardioDurationMin: te.cardioDurationMin,
+            cardioInclinePct: te.cardioInclinePct,
+            cardioSpeedKmh: te.cardioSpeedKmh,
           })
         }
       }

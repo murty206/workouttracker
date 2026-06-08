@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { applyProgression } from '@/lib/progression'
 import type { TemplateExercise, Exercise, SetLog } from '@/types'
 import { ExerciseCard } from '@/components/workout/ExerciseCard'
+import { CardioCard } from '@/components/workout/CardioCard'
 import { RestTimer } from '@/components/workout/RestTimer'
 import { WorkoutSummary } from '@/components/workout/WorkoutSummary'
 
@@ -110,14 +111,25 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
       {/* Exercise cards */}
       <div className="space-y-4 pb-32">
         {blocks.map(({ te, exercise, logs }) => (
-          <ExerciseCard
-            key={te.id}
-            te={te}
-            exercise={exercise}
-            sessionLogs={logs}
-            sessionId={sessionId}
-            onSetLogged={() => refreshLogs(exercise.id!)}
-          />
+          exercise.equipmentType === 'cardio' ? (
+            <CardioCard
+              key={te.id}
+              te={te}
+              exercise={exercise}
+              sessionLogs={logs}
+              sessionId={sessionId}
+              onToggle={() => refreshLogs(exercise.id!)}
+            />
+          ) : (
+            <ExerciseCard
+              key={te.id}
+              te={te}
+              exercise={exercise}
+              sessionLogs={logs}
+              sessionId={sessionId}
+              onSetLogged={() => refreshLogs(exercise.id!)}
+            />
+          )
         ))}
       </div>
 

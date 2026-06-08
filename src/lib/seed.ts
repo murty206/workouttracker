@@ -1,6 +1,15 @@
 import { db } from '@/lib/db'
 import { SEED_EXERCISES, SEED_PROGRAM, SEED_WEEKS } from '@/lib/seed-data'
 
+// Initial cardio prescription that gets seeded into every workout. Picked
+// with the user; matches the "30/7/5" start documented in the project
+// memory. The cardio progresses week-over-week via computeNextCardio.
+const CARDIO_SEED = {
+  durationMin: 30,
+  inclinePct: 7,
+  speedKmh: 5,
+}
+
 export async function seedIfEmpty(): Promise<void> {
   const count = await db.programs.count()
   if (count > 0) return
@@ -32,6 +41,21 @@ export async function seedIfEmpty(): Promise<void> {
         await db.exercises.update(id, { alternativeExerciseIds: altIds })
       }
     }
+
+    // Cardio exercise lives outside the strength spreadsheet — seed it
+    // programmatically so re-parsing the xlsx doesn't drop it.
+    const inclineWalkId = await db.exercises.add({
+      name: 'Incline Walk',
+      category: 'cardio',
+      primaryMuscle: 'general',
+      equipmentType: 'cardio',
+      weightDisplay: 'none',
+      incrementKg: 0,
+      restSeconds: 0,
+      alternativeExerciseIds: [],
+      isCustom: false,
+      requiresSetupNote: false,
+    })
 
     // Insert program
     const programId = await db.programs.add({
@@ -69,6 +93,23 @@ export async function seedIfEmpty(): Promise<void> {
             warmupWeights: ex.warmupWeights,
           })
         }
+
+        // Append the cardio bout last in every workout (all weeks
+        // including deload — deload's cardio is left untouched by
+        // progression, so it inherits the seed value initially and the
+        // W12 → W13 carry-forward later).
+        await db.templateExercises.add({
+          workoutTemplateId: templateId,
+          exerciseId: inclineWalkId,
+          orderInWorkout: 100,
+          plannedSets: 1,
+          plannedReps: 'max',
+          plannedWeightKg: null,
+          warmupWeights: [],
+          cardioDurationMin: CARDIO_SEED.durationMin,
+          cardioInclinePct: CARDIO_SEED.inclinePct,
+          cardioSpeedKmh: CARDIO_SEED.speedKmh,
+        })
       }
     }
   })
