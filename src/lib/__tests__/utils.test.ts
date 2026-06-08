@@ -9,6 +9,7 @@ import {
   decideProgression,
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
+import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
 
@@ -414,5 +415,103 @@ describe('median', () => {
 
   it('is order-independent', () => {
     expect(median([25, 15, 10, 20])).toBe(17.5)
+  })
+})
+
+// ─── Volume tracking ──────────────────────────────────────────────────────────
+
+describe('isoWeekStart', () => {
+  it('returns Monday for a Wednesday', () => {
+    // 2026-06-03 is a Wednesday → Monday of that week is 2026-06-01
+    expect(isoWeekStart(new Date(2026, 5, 3))).toBe('2026-06-01')
+  })
+
+  it('returns the same date when given a Monday', () => {
+    // 2026-06-01 is a Monday
+    expect(isoWeekStart(new Date(2026, 5, 1))).toBe('2026-06-01')
+  })
+
+  it('rolls Sunday back to the prior Monday (not forward)', () => {
+    // 2026-06-07 is Sunday → Monday 2026-06-01 (same ISO week)
+    expect(isoWeekStart(new Date(2026, 5, 7))).toBe('2026-06-01')
+  })
+
+  it('handles month/year boundary', () => {
+    // 2026-01-01 is Thursday → Monday is 2025-12-29
+    expect(isoWeekStart(new Date(2026, 0, 1))).toBe('2025-12-29')
+  })
+})
+
+describe('setVolume', () => {
+  it('returns weight × reps for a working set', () => {
+    expect(setVolume({ loggedAt: '', weightKg: 50, reps: 10, isWarmup: false })).toBe(500)
+  })
+
+  it('returns 0 for warmups', () => {
+    expect(setVolume({ loggedAt: '', weightKg: 50, reps: 5, isWarmup: true })).toBe(0)
+  })
+
+  it('returns 0 for bodyweight sets (weight null)', () => {
+    expect(setVolume({ loggedAt: '', weightKg: null, reps: 12, isWarmup: false })).toBe(0)
+  })
+
+  it('returns 0 when weight is 0', () => {
+    expect(setVolume({ loggedAt: '', weightKg: 0, reps: 10, isWarmup: false })).toBe(0)
+  })
+})
+
+describe('totalVolume', () => {
+  it('sums working sets and ignores warmups + bodyweight', () => {
+    expect(totalVolume([
+      { loggedAt: '', weightKg: 50, reps: 10, isWarmup: false },  // 500
+      { loggedAt: '', weightKg: 20, reps: 5, isWarmup: true },    // warmup, 0
+      { loggedAt: '', weightKg: null, reps: 12, isWarmup: false }, // bodyweight, 0
+      { loggedAt: '', weightKg: 60, reps: 8, isWarmup: false },   // 480
+    ])).toBe(980)
+  })
+
+  it('returns 0 for an empty list', () => {
+    expect(totalVolume([])).toBe(0)
+  })
+})
+
+describe('weeklyVolume', () => {
+  it('buckets sets by ISO week and sums volume', () => {
+    const result = weeklyVolume([
+      // Week of 2026-06-01: Mon 50×10 + Wed 60×8 = 500 + 480 = 980
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: 50, reps: 10, isWarmup: false },
+      { loggedAt: '2026-06-03T10:00:00Z', weightKg: 60, reps: 8, isWarmup: false },
+      // Week of 2026-06-08: Mon 55×10 = 550
+      { loggedAt: '2026-06-08T10:00:00Z', weightKg: 55, reps: 10, isWarmup: false },
+    ])
+    expect(result).toEqual([
+      { weekStart: '2026-06-01', volume: 980 },
+      { weekStart: '2026-06-08', volume: 550 },
+    ])
+  })
+
+  it('excludes warmups and bodyweight sets', () => {
+    const result = weeklyVolume([
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: 50, reps: 5, isWarmup: true },
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: null, reps: 12, isWarmup: false },
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: 60, reps: 8, isWarmup: false },
+    ])
+    expect(result).toEqual([{ weekStart: '2026-06-01', volume: 480 }])
+  })
+
+  it('returns sorted weeks ascending', () => {
+    const result = weeklyVolume([
+      { loggedAt: '2026-06-08T10:00:00Z', weightKg: 50, reps: 10, isWarmup: false },
+      { loggedAt: '2026-05-25T10:00:00Z', weightKg: 50, reps: 10, isWarmup: false },
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: 50, reps: 10, isWarmup: false },
+    ])
+    expect(result.map(r => r.weekStart)).toEqual(['2026-05-25', '2026-06-01', '2026-06-08'])
+  })
+
+  it('returns an empty array when no qualifying sets exist', () => {
+    expect(weeklyVolume([])).toEqual([])
+    expect(weeklyVolume([
+      { loggedAt: '2026-06-01T10:00:00Z', weightKg: null, reps: 10, isWarmup: false },
+    ])).toEqual([])
   })
 })

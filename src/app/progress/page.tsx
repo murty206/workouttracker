@@ -8,6 +8,8 @@ import { BodyFatChart } from '@/components/progress/BodyFatChart'
 import { LeanMassChart } from '@/components/progress/LeanMassChart'
 import { StrengthScoreCard } from '@/components/progress/StrengthScoreCard'
 import { ConsistencyCard } from '@/components/progress/ConsistencyCard'
+import { VolumeChart } from '@/components/progress/VolumeChart'
+import { weeklyVolume } from '@/lib/volume'
 
 export default function ProgressPage() {
   const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null)
@@ -18,6 +20,11 @@ export default function ProgressPage() {
   }, [])
 
   const bwLogs = useLiveQuery(() => db.bodyweightLogs.orderBy('loggedAt').toArray(), [])
+
+  const weeklyVol = useLiveQuery(async () => {
+    const logs = await db.setLogs.toArray()
+    return weeklyVolume(logs)
+  }, [])
 
   return (
     <div className="py-6 space-y-6">
@@ -33,6 +40,16 @@ export default function ProgressPage() {
       <section>
         <ConsistencyCard />
       </section>
+
+      {/* Weekly volume trend */}
+      {weeklyVol && weeklyVol.length >= 2 && (
+        <section>
+          <p className="text-xs text-[#888888] uppercase tracking-wider mb-3">Weekly Volume (kg)</p>
+          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4">
+            <VolumeChart />
+          </div>
+        </section>
+      )}
 
       {/* Body composition charts */}
       {bwLogs && bwLogs.length >= 2 && (

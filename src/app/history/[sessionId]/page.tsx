@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { Calendar, ChevronLeft, Clock, Trophy, MoreHorizontal, X } from 'lucide-react'
 import { weightLabel } from '@/lib/weight'
 import { rebuildPRsForExercise } from '@/lib/pr'
+import { totalVolume } from '@/lib/volume'
 
 type LogEntry = { logId: number; weight: number | null; reps: number; exerciseId: number }
 
@@ -113,12 +114,20 @@ export default function SessionDetailPage() {
       ) : (
         exercises.map(({ exercise, logs }) => {
           const setupNote = logs.find(l => l.setupNote)?.setupNote
+          const vol = Math.round(totalVolume(logs))
           return (
           <div key={exercise.id} className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#2a2a2a]">
-              <p className="text-sm font-semibold">{exercise.name}</p>
-              {setupNote && (
-                <p className="text-xs text-[#888888] italic mt-0.5">Setup: {setupNote}</p>
+            <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">{exercise.name}</p>
+                {setupNote && (
+                  <p className="text-xs text-[#888888] italic mt-0.5">Setup: {setupNote}</p>
+                )}
+              </div>
+              {vol > 0 && (
+                <span className="text-xs text-[#888888] tabular-nums shrink-0 mt-0.5">
+                  {vol.toLocaleString()} kg
+                </span>
               )}
             </div>
 
