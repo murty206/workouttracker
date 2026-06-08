@@ -94,6 +94,8 @@ export interface SetLog {
   setupNote?: string
 }
 
+export type PRType = 'strength' | 'reps'
+
 export interface PersonalRecord {
   id?: number
   exerciseId: number
@@ -103,6 +105,10 @@ export interface PersonalRecord {
   achievedAt: string
   sessionId: number
   setLogId: number
+  // 'strength' = new heaviest weight ever for this exercise
+  // 'reps'     = more reps than ever achieved at the current max weight
+  // Legacy records (pre-v7) are backfilled as 'strength'.
+  prType: PRType
 }
 
 export interface BodyweightLog {

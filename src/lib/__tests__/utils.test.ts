@@ -11,6 +11,7 @@ import {
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
+import { checkPR } from '../pr'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
 
@@ -550,5 +551,81 @@ describe('computeDeloadWeight', () => {
   it('returns 0 when 50% rounds below the smallest step', () => {
     // 2 × 0.5 = 1 → floor to 0
     expect(computeDeloadWeight(2, 'barbell')).toBe(0)
+  })
+})
+
+// ─── PR detection ─────────────────────────────────────────────────────────────
+
+describe('checkPR — first set ever', () => {
+  it('fires both Strength and Rep PR (new max weight, first reps at it)', () => {
+    expect(checkPR({
+      weightKg: 60, reps: 5,
+      priorMaxWeight: 0, priorMaxRepsAtMaxWeight: 0,
+    })).toEqual({ strength: true, reps: true })
+  })
+})
+
+describe('checkPR — Strength PR', () => {
+  it('fires when weight strictly exceeds prior max', () => {
+    expect(checkPR({
+      weightKg: 65, reps: 3,
+      priorMaxWeight: 60, priorMaxRepsAtMaxWeight: 8,
+    })).toEqual({ strength: true, reps: true })
+  })
+
+  it('does NOT fire when matching prior max weight', () => {
+    expect(checkPR({
+      weightKg: 60, reps: 8,
+      priorMaxWeight: 60, priorMaxRepsAtMaxWeight: 5,
+    })).toMatchObject({ strength: false })
+  })
+})
+
+describe('checkPR — Rep PR', () => {
+  it('fires at current max weight when reps exceed prior best', () => {
+    expect(checkPR({
+      weightKg: 60, reps: 8,
+      priorMaxWeight: 60, priorMaxRepsAtMaxWeight: 5,
+    })).toEqual({ strength: false, reps: true })
+  })
+
+  it('does NOT fire when reps tie the prior best', () => {
+    expect(checkPR({
+      weightKg: 60, reps: 5,
+      priorMaxWeight: 60, priorMaxRepsAtMaxWeight: 5,
+    })).toEqual({ strength: false, reps: false })
+  })
+
+  it('does NOT fire at lower weight, even if reps are very high', () => {
+    // Lateral Raise 2.5 × 20 when 5 kg has been done before — not a PR
+    expect(checkPR({
+      weightKg: 2.5, reps: 20,
+      priorMaxWeight: 5, priorMaxRepsAtMaxWeight: 8,
+    })).toEqual({ strength: false, reps: false })
+  })
+})
+
+describe('checkPR — isolation/high-rep progression', () => {
+  it('lateral raise rep progression at the working weight all count', () => {
+    // 2.5 × 10 (first ever) → both
+    expect(checkPR({
+      weightKg: 2.5, reps: 10, priorMaxWeight: 0, priorMaxRepsAtMaxWeight: 0,
+    })).toEqual({ strength: true, reps: true })
+    // 2.5 × 12 → Rep PR only
+    expect(checkPR({
+      weightKg: 2.5, reps: 12, priorMaxWeight: 2.5, priorMaxRepsAtMaxWeight: 10,
+    })).toEqual({ strength: false, reps: true })
+    // 2.5 × 14 → Rep PR
+    expect(checkPR({
+      weightKg: 2.5, reps: 14, priorMaxWeight: 2.5, priorMaxRepsAtMaxWeight: 12,
+    })).toEqual({ strength: false, reps: true })
+    // 5 × 8 (jump up in weight) → both
+    expect(checkPR({
+      weightKg: 5, reps: 8, priorMaxWeight: 2.5, priorMaxRepsAtMaxWeight: 14,
+    })).toEqual({ strength: true, reps: true })
+    // 2.5 × 16 (regression weight, beats old rep count, but max is now 5) → nothing
+    expect(checkPR({
+      weightKg: 2.5, reps: 16, priorMaxWeight: 5, priorMaxRepsAtMaxWeight: 8,
+    })).toEqual({ strength: false, reps: false })
   })
 })

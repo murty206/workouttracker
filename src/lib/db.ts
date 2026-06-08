@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, Program, ProgramWeek, WorkoutTemplate,
-  TemplateExercise, Session, SetLog, PersonalRecord, BodyweightLog, UserPref
+  TemplateExercise, Session, SetLog, PersonalRecord, BodyweightLog, UserPref,
 } from '@/types'
 
 export class WorkoutDB extends Dexie {
@@ -83,6 +83,14 @@ export class WorkoutDB extends Dexie {
         if (ex.requiresSetupNote === undefined) {
           ex.requiresSetupNote = ex.name === 'Inverted Row'
         }
+      })
+    })
+
+    this.version(7).stores({}).upgrade(async tx => {
+      // Dual PR system: pre-existing records are Epley-based "best ever",
+      // semantically closest to the new Strength PR. Backfill as such.
+      await tx.table('personalRecords').toCollection().modify((pr: PersonalRecord) => {
+        if (pr.prType === undefined) pr.prType = 'strength'
       })
     })
   }

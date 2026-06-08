@@ -2,15 +2,22 @@
 import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { db } from '@/lib/db'
-import type { SetLog, Exercise, PersonalRecord } from '@/types'
+import type { SetLog, Exercise, PRType } from '@/types'
 
 interface Props {
   sessionId: number
   onClose: () => void
 }
 
+interface PRGroup {
+  exercise: Exercise
+  weightKg: number | null
+  reps: number
+  types: PRType[]
+}
+
 export function WorkoutSummary({ sessionId, onClose }: Props) {
-  const [prs, setPRs] = useState<Array<{ record: PersonalRecord; exercise: Exercise }>>([])
+  const [prs, setPRs] = useState<PRGroup[]>([])
   const [totalVolume, setTotalVolume] = useState(0)
   const [duration, setDuration] = useState('')
   const [note, setNote] = useState('')
@@ -29,16 +36,29 @@ export function WorkoutSummary({ sessionId, onClose }: Props) {
       const vol = logs.reduce((sum, l) => sum + (l.weightKg ?? 0) * l.reps, 0)
       setTotalVolume(Math.round(vol))
 
-      const prLogs = logs.filter(l => l.isPR)
-      const prData = await Promise.all(
-        prLogs.map(async l => {
-          const record = await db.personalRecords
-            .where('setLogId').equals(l.id!).first()
-          const exercise = await db.exercises.get(l.exerciseId)
-          return record && exercise ? { record, exercise } : null
-        })
-      )
-      setPRs(prData.filter(Boolean) as Array<{ record: PersonalRecord; exercise: Exercise }>)
+      const sessionPRs = await db.personalRecords
+        .where('sessionId').equals(sessionId)
+        .toArray()
+
+      // Group by setLogId so the UI shows one row per set even if both
+      // Strength and Rep PR fired on it.
+      const groups = new Map<number, PRGroup>()
+      for (const pr of sessionPRs) {
+        const exercise = await db.exercises.get(pr.exerciseId)
+        if (!exercise) continue
+        const existing = groups.get(pr.setLogId)
+        if (existing) {
+          existing.types.push(pr.prType)
+        } else {
+          groups.set(pr.setLogId, {
+            exercise,
+            weightKg: pr.weightKg,
+            reps: pr.reps,
+            types: [pr.prType],
+          })
+        }
+      }
+      setPRs(Array.from(groups.values()))
     }
     load()
   }, [sessionId])
@@ -68,12 +88,19 @@ export function WorkoutSummary({ sessionId, onClose }: Props) {
           <div className="mb-6">
             <p className="text-xs text-[#888888] uppercase tracking-wider mb-2">New Personal Records</p>
             <div className="space-y-2">
-              {prs.map(({ record, exercise }) => (
-                <div key={record.id} className="flex items-center gap-3 bg-[#22c55e]/10 border border-[#22c55e]/20 rounded-xl px-3 py-2">
+              {prs.map((g, i) => (
+                <div key={i} className="flex items-center gap-3 bg-[#22c55e]/10 border border-[#22c55e]/20 rounded-xl px-3 py-2">
                   <Trophy size={16} className="text-[#22c55e] shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{exercise.name}</p>
-                    <p className="text-xs text-[#888888]">{record.weightKg} kg × {record.reps} reps</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium truncate">{g.exercise.name}</p>
+                      {g.types.map(t => (
+                        <span key={t} className="text-[10px] uppercase tracking-wider text-[#22c55e] border border-[#22c55e]/40 rounded px-1.5 py-0.5">
+                          {t === 'strength' ? 'Strength' : 'Reps'}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-[#888888] mt-0.5">{g.weightKg} kg × {g.reps} reps</p>
                   </div>
                 </div>
               ))}
