@@ -210,23 +210,23 @@ describe('evaluatePerformance — empty input', () => {
   })
 })
 
-describe('decideProgression — barbell (no double-confirm needed)', () => {
+describe('decideProgression — barbell (no multi-confirm needed)', () => {
   const base = {
     incrementKg: 2.5,
     equipmentType: 'barbell' as const,
-    readyForBump: false,
+    bumpConfirmStreak: 0,
     justBumped: false,
   }
 
   it('INCREASE bumps by one increment', () => {
     expect(decideProgression({ ...base, basisKg: 50, result: 'INCREASE' })).toMatchObject({
       nextWeightKg: 52.5,
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
     })
   })
 
-  it('INCREASE_2 bumps by two increments', () => {
+  it('INCREASE_2 bumps by two increments (barbell only)', () => {
     expect(decideProgression({ ...base, basisKg: 50, result: 'INCREASE_2' })).toMatchObject({
       nextWeightKg: 55,
     })
@@ -245,7 +245,7 @@ describe('decideProgression — barbell (no double-confirm needed)', () => {
   })
 })
 
-describe('decideProgression — dumbbell double-confirmation', () => {
+describe('decideProgression — dumbbell triple-confirmation (B+)', () => {
   const lightDB = {
     basisKg: 5,
     incrementKg: 2.5,
@@ -253,47 +253,78 @@ describe('decideProgression — dumbbell double-confirmation', () => {
     justBumped: false,
   }
 
-  it('first INCREASE on a big-jump dumbbell stays at basis and arms ready flag', () => {
-    expect(decideProgression({ ...lightDB, result: 'INCREASE', readyForBump: false }))
+  it('first INCREASE on a big-jump dumbbell stays at basis with streak=1', () => {
+    expect(decideProgression({ ...lightDB, result: 'INCREASE', bumpConfirmStreak: 0 }))
       .toMatchObject({
         nextWeightKg: 5,
-        readyForBump: true,
+        bumpConfirmStreak: 1,
         justBumped: false,
       })
   })
 
-  it('second INCREASE confirms the bump and sets grace flag', () => {
-    expect(decideProgression({ ...lightDB, result: 'INCREASE', readyForBump: true }))
+  it('second INCREASE keeps holding at basis with streak=2', () => {
+    expect(decideProgression({ ...lightDB, result: 'INCREASE', bumpConfirmStreak: 1 }))
+      .toMatchObject({
+        nextWeightKg: 5,
+        bumpConfirmStreak: 2,
+        justBumped: false,
+      })
+  })
+
+  it('third INCREASE finally bumps and resets streak', () => {
+    expect(decideProgression({ ...lightDB, result: 'INCREASE', bumpConfirmStreak: 2 }))
       .toMatchObject({
         nextWeightKg: 7.5,
-        readyForBump: false,
+        bumpConfirmStreak: 0,
         justBumped: true,
       })
   })
 
-  it('big jump applies to INCREASE_2 too', () => {
-    // 5 + 5 = 10 (+100%) — still requires double-confirm
-    expect(decideProgression({ ...lightDB, result: 'INCREASE_2', readyForBump: false }))
-      .toMatchObject({ nextWeightKg: 5, readyForBump: true })
-    expect(decideProgression({ ...lightDB, result: 'INCREASE_2', readyForBump: true }))
-      .toMatchObject({ nextWeightKg: 10, readyForBump: false, justBumped: true })
+  it('INCREASE_2 on a dumbbell is capped to a single step (no 2.5 → 7.5 overshoot)', () => {
+    // streak=2 + INCREASE_2 should still only bump by one step, not two
+    expect(decideProgression({
+      ...lightDB,
+      basisKg: 2.5,
+      result: 'INCREASE_2',
+      bumpConfirmStreak: 2,
+    })).toMatchObject({
+      nextWeightKg: 5,         // capped (not 7.5)
+      justBumped: true,
+    })
   })
 
-  it('SAME clears a pending ready flag (no free confirmation from a middle-range session)', () => {
-    expect(decideProgression({ ...lightDB, result: 'SAME', readyForBump: true }))
-      .toMatchObject({ nextWeightKg: 5, readyForBump: false })
+  it('SAME clears any pending streak', () => {
+    expect(decideProgression({ ...lightDB, result: 'SAME', bumpConfirmStreak: 2 }))
+      .toMatchObject({ nextWeightKg: 5, bumpConfirmStreak: 0 })
   })
 
-  it('larger dumbbells (>15% jump bar) bump normally without double-confirm', () => {
+  it('DECREASE clears any pending streak', () => {
+    expect(decideProgression({ ...lightDB, result: 'DECREASE', bumpConfirmStreak: 2 }))
+      .toMatchObject({ nextWeightKg: 2.5, bumpConfirmStreak: 0 })
+  })
+
+  it('larger dumbbells (<15 % jump) bump immediately, no streak required', () => {
     // 25 kg DB + 2.5 = +10 % → bump in one go
     expect(decideProgression({
       basisKg: 25,
       incrementKg: 2.5,
       equipmentType: 'dumbbell',
       result: 'INCREASE',
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
-    })).toMatchObject({ nextWeightKg: 27.5, readyForBump: false, justBumped: false })
+    })).toMatchObject({ nextWeightKg: 27.5, bumpConfirmStreak: 0, justBumped: false })
+  })
+
+  it('larger dumbbells also have INCREASE_2 capped to single step', () => {
+    // 25 kg DB hitting INCREASE_2 used to bump +5 = 30. Now capped to +2.5 = 27.5.
+    expect(decideProgression({
+      basisKg: 25,
+      incrementKg: 2.5,
+      equipmentType: 'dumbbell',
+      result: 'INCREASE_2',
+      bumpConfirmStreak: 0,
+      justBumped: false,
+    })).toMatchObject({ nextWeightKg: 27.5 })
   })
 })
 
@@ -304,11 +335,11 @@ describe('decideProgression — grace period after a bump', () => {
       incrementKg: 2.5,
       equipmentType: 'dumbbell',
       result: 'DECREASE',
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: true,
     })).toMatchObject({
       nextWeightKg: 7.5,
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
       reason: 'grace',
     })
@@ -320,7 +351,7 @@ describe('decideProgression — grace period after a bump', () => {
       incrementKg: 2.5,
       equipmentType: 'dumbbell',
       result: 'DECREASE',
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
     })).toMatchObject({ nextWeightKg: 5, justBumped: false })
   })

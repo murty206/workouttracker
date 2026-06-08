@@ -16,13 +16,14 @@ export interface Exercise {
   isCustom: boolean
   notes?: string
   // Internal progression state — managed by applyProgression, not the UI.
-  // readyForBump: first time we hit the upper rep target on a dumbbell where
-  // the next weight would be a >15% jump — algorithm holds the bump until
-  // the user confirms on a second consecutive session.
+  // bumpConfirmStreak: consecutive sessions where evaluatePerformance said
+  // INCREASE on a dumbbell whose next step is a >15 % jump. Algorithm
+  // holds the bump until the streak reaches DUMBBELL_BUMP_CONFIRM_COUNT
+  // (currently 3). Any SAME or DECREASE resets to 0.
   // justBumped: last applyProgression actually bumped this exercise; grants
   // a one-session DECREASE grace so the user doesn't oscillate around a
   // big jump.
-  readyForBump?: boolean
+  bumpConfirmStreak?: number
   justBumped?: boolean
   // True for exercises whose performance depends on a physical setup the user
   // chooses each session (e.g. inverted row bar height). Surfaces a small

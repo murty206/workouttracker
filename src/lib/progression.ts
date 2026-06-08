@@ -98,10 +98,17 @@ export function median(values: number[]): number {
 
 // ─── Pure progression decision ────────────────────────────────────────────────
 
-// % jump above which dumbbell exercises require a second confirmation
+// % jump above which dumbbell exercises require multi-session confirmation
 // before bumping. 15 % is the line that flags 5 → 7.5 (+50 %) as risky
 // but lets 25 → 27.5 (+10 %) bump normally.
 const DUMBBELL_DOUBLE_CONFIRM_PCT = 0.15
+
+// Number of consecutive INCREASE sessions a small-step dumbbell needs
+// before the algorithm bumps. Bumped to 3 (from 2) after backup-data
+// analysis showed user-initiated drops should be honoured more
+// generously — three crush sessions in a row is a clearer signal of
+// readiness than two.
+const DUMBBELL_BUMP_CONFIRM_COUNT = 3
 
 // Deload week target weight as a fraction of the prior week's lifted median.
 // 0.5 matches Texas Method / 5/3/1 conventions: light enough for recovery,
@@ -173,7 +180,7 @@ export function computeNextCardio(
 
 export interface ProgressionDecision {
   nextWeightKg: number
-  readyForBump: boolean
+  bumpConfirmStreak: number
   justBumped: boolean
   // For diagnostics / future UI hints. Not currently surfaced.
   reason: 'no-change' | 'increase' | 'increase-2' | 'decrease' | 'bump-confirmed' | 'awaiting-confirmation' | 'grace'
@@ -184,19 +191,19 @@ export interface ProgressionInput {
   result: ProgressionResult
   incrementKg: number
   equipmentType: EquipmentType
-  readyForBump: boolean
+  bumpConfirmStreak: number
   justBumped: boolean
 }
 
 export function decideProgression(input: ProgressionInput): ProgressionDecision {
-  const { basisKg, result, incrementKg, equipmentType, readyForBump, justBumped } = input
+  const { basisKg, result, incrementKg, equipmentType, bumpConfirmStreak, justBumped } = input
   const round = (w: number) => Math.max(0, Math.round(w * 100) / 100)
 
   // DECREASE with a fresh bump → soak one session at the higher weight.
   if (result === 'DECREASE' && justBumped) {
     return {
       nextWeightKg: round(basisKg),
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
       reason: 'grace',
     }
@@ -205,7 +212,7 @@ export function decideProgression(input: ProgressionInput): ProgressionDecision 
   if (result === 'DECREASE') {
     return {
       nextWeightKg: round(basisKg - incrementKg),
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
       reason: 'decrease',
     }
@@ -213,37 +220,46 @@ export function decideProgression(input: ProgressionInput): ProgressionDecision 
 
   if (result === 'SAME') {
     // Hitting the middle of the range does not count as a bump confirmation —
-    // any held "ready" flag is cleared.
+    // any pending streak is cleared.
     return {
       nextWeightKg: round(basisKg),
-      readyForBump: false,
+      bumpConfirmStreak: 0,
       justBumped: false,
       reason: 'no-change',
     }
   }
 
-  // INCREASE or INCREASE_2
-  const steps = result === 'INCREASE_2' ? 2 : 1
+  // INCREASE or INCREASE_2.
+  // For dumbbells the rack steps in fixed 2.5 kg increments — a "double
+  // increment" is always a 5 kg / 100 % jump from a small DB, which is
+  // unsupportable. Cap dumbbell to a single step regardless of how hard
+  // the user crushed the session; the rep performance was just a signal
+  // they're ready for the next dumbbell, not two ahead.
+  const rawSteps = result === 'INCREASE_2' ? 2 : 1
+  const steps = equipmentType === 'dumbbell' ? 1 : rawSteps
   const delta = incrementKg * steps
   const pctJump = basisKg > 0 ? delta / basisKg : Infinity
 
-  const needsDoubleConfirm =
+  const needsMultiConfirm =
     equipmentType === 'dumbbell' && pctJump > DUMBBELL_DOUBLE_CONFIRM_PCT
 
-  if (needsDoubleConfirm && !readyForBump) {
-    return {
-      nextWeightKg: round(basisKg),
-      readyForBump: true,
-      justBumped: false,
-      reason: 'awaiting-confirmation',
+  if (needsMultiConfirm) {
+    const newStreak = bumpConfirmStreak + 1
+    if (newStreak < DUMBBELL_BUMP_CONFIRM_COUNT) {
+      return {
+        nextWeightKg: round(basisKg),
+        bumpConfirmStreak: newStreak,
+        justBumped: false,
+        reason: 'awaiting-confirmation',
+      }
     }
   }
 
   return {
     nextWeightKg: round(basisKg + delta),
-    readyForBump: false,
-    justBumped: needsDoubleConfirm, // grace only when the jump was risky
-    reason: needsDoubleConfirm
+    bumpConfirmStreak: 0,
+    justBumped: needsMultiConfirm, // grace only when the jump was risky
+    reason: needsMultiConfirm
       ? 'bump-confirmed'
       : steps === 2 ? 'increase-2' : 'increase',
   }
@@ -321,17 +337,17 @@ export async function applyProgression(sessionId: number): Promise<void> {
       result,
       incrementKg: exercise.incrementKg,
       equipmentType: exercise.equipmentType,
-      readyForBump: exercise.readyForBump ?? false,
+      bumpConfirmStreak: exercise.bumpConfirmStreak ?? 0,
       justBumped: exercise.justBumped ?? false,
     })
 
     // Persist flag transitions on the exercise so they carry across weeks.
     if (
-      (exercise.readyForBump ?? false) !== decision.readyForBump ||
+      (exercise.bumpConfirmStreak ?? 0) !== decision.bumpConfirmStreak ||
       (exercise.justBumped ?? false) !== decision.justBumped
     ) {
       await db.exercises.update(exercise.id!, {
-        readyForBump: decision.readyForBump,
+        bumpConfirmStreak: decision.bumpConfirmStreak,
         justBumped: decision.justBumped,
       })
     }

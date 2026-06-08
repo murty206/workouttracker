@@ -66,8 +66,9 @@ export class WorkoutDB extends Dexie {
     this.version(5).stores({}).upgrade(async tx => {
       // Dumbbell rack increments are physically 2.5 kg per dumbbell (no
       // 1.25 kg microplates). Fix the per-exercise incrementKg and init the
-      // new progression-state flags to false.
-      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+      // (then-boolean) progression-state flags to false. v11 later
+      // replaces readyForBump with bumpConfirmStreak.
+      await tx.table('exercises').toCollection().modify((ex: Record<string, unknown>) => {
         if (ex.equipmentType === 'dumbbell') {
           ex.incrementKg = 2.5
         }
@@ -187,6 +188,17 @@ export class WorkoutDB extends Dexie {
           cardioSpeedKmh: 5,
         } as TemplateExercise)
       }
+    })
+
+    this.version(11).stores({}).upgrade(async tx => {
+      // B+ rule: replace the boolean readyForBump with a numeric streak
+      // counter (bumpConfirmStreak). Existing readyForBump=true means
+      // the user had one prior confirmation, so seed the streak at 1.
+      // readyForBump=false or missing → 0.
+      await tx.table('exercises').toCollection().modify((ex: Record<string, unknown>) => {
+        ex.bumpConfirmStreak = ex.readyForBump === true ? 1 : 0
+        delete ex.readyForBump
+      })
     })
   }
 }
