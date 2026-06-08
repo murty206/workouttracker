@@ -111,6 +111,38 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(9).stores({}).upgrade(async tx => {
+      // Overhead Triceps Extension is a machine in the user's gym, not a
+      // dumbbell lift. Recategorise; historical weights were already
+      // entered as machine totals so the numbers stay. Floor
+      // plannedWeightKg to the nearest 5 kg and drop precomputed warmups
+      // (next applyProgression repopulates them with the machine 5-kg
+      // step).
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        if (ex.name === 'Overhead Triceps Extension') {
+          ex.category = 'machine'
+          ex.equipmentType = 'machine'
+          ex.weightDisplay = 'total'
+          ex.incrementKg = 5
+        }
+      })
+
+      const ohtRow = await tx.table('exercises')
+        .filter((ex: Exercise) => ex.name === 'Overhead Triceps Extension')
+        .first()
+      if (ohtRow?.id) {
+        const ohtId = ohtRow.id
+        await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+          if (te.exerciseId === ohtId) {
+            if (te.plannedWeightKg !== null) {
+              te.plannedWeightKg = Math.floor(te.plannedWeightKg / 5) * 5
+            }
+            te.warmupWeights = []
+          }
+        })
+      }
+    })
   }
 }
 

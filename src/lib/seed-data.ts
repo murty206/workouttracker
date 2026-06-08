@@ -176,11 +176,11 @@ export const SEED_EXERCISES: SeedExercise[] = [
   },
   {
     "name": "Overhead Triceps Extension",
-    "category": "strength",
+    "category": "machine",
     "primaryMuscle": "general",
-    "equipmentType": "dumbbell",
-    "weightDisplay": "per-side",
-    "incrementKg": 2.5,
+    "equipmentType": "machine",
+    "weightDisplay": "total",
+    "incrementKg": 5,
     "isCustom": false,
     "alternativeExerciseNames": []
   },
