@@ -9,6 +9,13 @@ export function remainingSeconds(nowMs: number, startMs: number | null, duration
   return Math.max(0, Math.ceil((startMs + durationMs - nowMs) / 1000))
 }
 
+// Minimal subset of the Wake Lock API we actually use. Lets us type the
+// promise return + release method without pulling in a full DOM lib
+// declaration that varies between TS targets.
+interface WakeLockSentinelLike {
+  release: () => Promise<void>
+}
+
 export function RestTimer() {
   const startMs = useWorkoutStore(s => s.restTimerStartMs)
   const durationMs = useWorkoutStore(s => s.restTimerDurationMs)
@@ -19,6 +26,7 @@ export function RestTimer() {
 
   const [now, setNow] = useState(() => Date.now())
   const notifiedRef = useRef(false)
+  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
   // Reset notified flag whenever a new timer starts.
   useEffect(() => {
@@ -46,6 +54,54 @@ export function RestTimer() {
     }
     Notification.requestPermission().finally(() => setNotifAsked(true))
   }, [startMs, notifAsked, setNotifAsked])
+
+  // Hold a screen Wake Lock while the timer is running. On Android Firefox
+  // (and most mobile browsers) the Notification + vibrate fallbacks fire
+  // unreliably once the tab is backgrounded or the screen times out, so
+  // keeping the screen on during rest is the most dependable way for the
+  // user to actually notice the countdown ending.
+  useEffect(() => {
+    if (startMs === null) return
+    if (typeof navigator === 'undefined') return
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> }
+    }
+    if (!nav.wakeLock) return
+
+    let cancelled = false
+
+    async function acquire() {
+      try {
+        const lock = await nav.wakeLock!.request('screen')
+        if (cancelled) {
+          await lock.release().catch(() => {})
+          return
+        }
+        wakeLockRef.current = lock
+      } catch {
+        // Permission denied / not supported in this state — silent fallback.
+      }
+    }
+
+    // Some platforms drop the wake lock when the tab is hidden and don't
+    // auto-reacquire on return. Re-request on visibility change.
+    function onVisibility() {
+      if (document.visibilityState === 'visible' && wakeLockRef.current === null) {
+        acquire()
+      }
+    }
+
+    acquire()
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      const lock = wakeLockRef.current
+      wakeLockRef.current = null
+      lock?.release().catch(() => {})
+    }
+  }, [startMs])
 
   const remaining = remainingSeconds(now, startMs, durationMs)
   const totalSec = Math.ceil(durationMs / 1000)
