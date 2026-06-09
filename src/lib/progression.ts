@@ -124,6 +124,38 @@ export function computeDeloadWeight(
   return Math.max(0, Math.floor((basisKg * DELOAD_FACTOR) / step) * step)
 }
 
+// ─── Equipment snapping ───────────────────────────────────────────────────────
+
+// Map an arbitrary kg target onto a weight the user can actually load on the
+// equipment. The user's gym uses 2.5 kg increments for both barbell plates
+// and dumbbells, and 5 kg increments on machine stacks. Bodyweight + cardio
+// have no weight to snap.
+//
+// `direction` controls rounding when the target lands between steps:
+//   - 'up'   → ceil to the next available step (for INCREASE / INCREASE_2)
+//   - 'down' → floor to the prior step (for DECREASE / deload)
+//   - 'nearest' → round half-up; used as a safety net for SAME, where the
+//     basis should already be a valid step but float drift may have nudged it
+//
+// Without this, `decideProgression`'s `basis ± increment` can produce
+// half-step values (e.g. 11.25 from old-code data) that the user cannot
+// physically load.
+export function snapToAvailable(
+  targetKg: number,
+  equipmentType: EquipmentType,
+  direction: 'up' | 'down' | 'nearest' = 'nearest',
+): number {
+  if (equipmentType === 'bodyweight' || equipmentType === 'cardio') return targetKg
+  if (targetKg <= 0) return 0
+  const step = equipmentType === 'machine' ? 5 : 2.5
+  const n = targetKg / step
+  let snapped: number
+  if (direction === 'up') snapped = Math.ceil(n) * step
+  else if (direction === 'down') snapped = Math.floor(n) * step
+  else snapped = Math.round(n) * step
+  return Math.max(0, Math.round(snapped * 100) / 100)
+}
+
 // ─── Cardio progression ───────────────────────────────────────────────────────
 
 export const CARDIO_INCLINE_CAP_PCT = 12
@@ -352,9 +384,27 @@ export async function applyProgression(sessionId: number): Promise<void> {
       })
     }
 
-    const nextWarmups = computeWarmupWeights(decision.nextWeightKg, exercise.equipmentType)
+    // Snap the decided weight onto a physically loadable step. Direction is
+    // chosen so an INCREASE never silently drops to the basis and a DECREASE
+    // never silently bumps; holds round to the nearest step to repair any
+    // half-step value that may have leaked in from older code.
+    const snapDirection: 'up' | 'down' | 'nearest' =
+      decision.reason === 'increase' ||
+      decision.reason === 'increase-2' ||
+      decision.reason === 'bump-confirmed'
+        ? 'up'
+        : decision.reason === 'decrease'
+        ? 'down'
+        : 'nearest'
+    const snappedWeight = snapToAvailable(
+      decision.nextWeightKg,
+      exercise.equipmentType,
+      snapDirection,
+    )
+
+    const nextWarmups = computeWarmupWeights(snappedWeight, exercise.equipmentType)
     await db.templateExercises.update(nextTe.id!, {
-      plannedWeightKg: decision.nextWeightKg,
+      plannedWeightKg: snappedWeight,
       warmupWeights: nextWarmups,
     })
   }

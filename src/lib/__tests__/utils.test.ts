@@ -9,6 +9,7 @@ import {
   decideProgression,
   computeDeloadWeight,
   computeNextCardio,
+  snapToAvailable,
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
@@ -178,6 +179,41 @@ describe('evaluatePerformance — fixed scheme (5×5)', () => {
 
   it('DECREASE on any set below target', () => {
     expect(evaluatePerformance([4, 5, 5, 5, 5], fixed)).toBe('DECREASE')
+  })
+})
+
+// A10 — defensive coverage for the upper==lower case (e.g. DRD's "3×8"
+// scheme). The user reported seeing a DECREASE prescription after hitting
+// 8/8/8 on this scheme; the underlying 11.25 kg artifact turned out to be
+// stale data, not an evaluator bug. These tests pin the correct behavior
+// so the same misdiagnosis can't sneak back through a future refactor.
+describe('evaluatePerformance — single-number scheme (3×8)', () => {
+  const single = { lower: 8, upper: 8, isAmrap: false }
+
+  it('INCREASE when every set lands exactly on target (no overshoot)', () => {
+    // The exact case the user observed: DRD 12.5 × 8/8/8 must not return DECREASE.
+    expect(evaluatePerformance([8, 8, 8], single)).toBe('INCREASE')
+  })
+
+  it('INCREASE_2 when ≥2 sets exceed the target', () => {
+    expect(evaluatePerformance([9, 9, 8], single)).toBe('INCREASE_2')
+    expect(evaluatePerformance([10, 9, 8], single)).toBe('INCREASE_2')
+  })
+
+  it('INCREASE when only one set exceeds the target', () => {
+    expect(evaluatePerformance([9, 8, 8], single)).toBe('INCREASE')
+  })
+
+  it('DECREASE when even one set drops below', () => {
+    expect(evaluatePerformance([7, 8, 8], single)).toBe('DECREASE')
+    expect(evaluatePerformance([8, 7, 8], single)).toBe('DECREASE')
+  })
+
+  it('does not mistake exact-target for under-target', () => {
+    // 8 < 8 must evaluate false — that mistake would push the user backwards
+    // even when they hit the prescription perfectly.
+    expect(evaluatePerformance([8, 8, 8], single)).not.toBe('DECREASE')
+    expect(evaluatePerformance([8, 8, 8], single)).not.toBe('SAME')
   })
 })
 
@@ -659,6 +695,55 @@ describe('checkPR — isolation/high-rep progression', () => {
     expect(checkPR({
       weightKg: 2.5, reps: 16, priorMaxWeight: 5, priorMaxRepsAtMaxWeight: 8,
     })).toEqual({ strength: false, reps: false })
+  })
+})
+
+describe('snapToAvailable — equipment increments', () => {
+  it('snaps dumbbell weights to the 2.5 kg grid', () => {
+    // The 11.25 (10 + old 1.25 increment) case the user actually saw
+    expect(snapToAvailable(11.25, 'dumbbell', 'down')).toBe(10)
+    expect(snapToAvailable(11.25, 'dumbbell', 'up')).toBe(12.5)
+    // 11.25 / 2.5 = 4.5 → Math.round half-up → 5 * 2.5 = 12.5
+    expect(snapToAvailable(11.25, 'dumbbell', 'nearest')).toBe(12.5)
+  })
+
+  it('rounds half-step values per direction', () => {
+    // 6.25 / 2.5 = 2.5 → nearest 3 → 7.5
+    expect(snapToAvailable(6.25, 'dumbbell', 'down')).toBe(5)
+    expect(snapToAvailable(6.25, 'dumbbell', 'up')).toBe(7.5)
+    expect(snapToAvailable(6.25, 'dumbbell', 'nearest')).toBe(7.5)
+    // 3.75 / 2.5 = 1.5 → nearest 2 → 5
+    expect(snapToAvailable(3.75, 'dumbbell', 'down')).toBe(2.5)
+    expect(snapToAvailable(3.75, 'dumbbell', 'up')).toBe(5)
+    expect(snapToAvailable(3.75, 'dumbbell', 'nearest')).toBe(5)
+  })
+
+  it('snaps machine weights to the 5 kg grid', () => {
+    expect(snapToAvailable(27.5, 'machine', 'down')).toBe(25)
+    expect(snapToAvailable(27.5, 'machine', 'up')).toBe(30)
+    expect(snapToAvailable(32, 'machine', 'nearest')).toBe(30)
+  })
+
+  it('snaps barbell to 2.5 kg per side', () => {
+    expect(snapToAvailable(42.5, 'barbell', 'nearest')).toBe(42.5) // already on grid
+    expect(snapToAvailable(43.75, 'barbell', 'up')).toBe(45)
+    expect(snapToAvailable(43.75, 'barbell', 'down')).toBe(42.5)
+  })
+
+  it('passes through cardio and bodyweight unchanged', () => {
+    expect(snapToAvailable(11.25, 'bodyweight', 'up')).toBe(11.25)
+    expect(snapToAvailable(7, 'cardio', 'down')).toBe(7)
+  })
+
+  it('returns 0 for non-positive input on weighted equipment', () => {
+    expect(snapToAvailable(0, 'dumbbell', 'nearest')).toBe(0)
+    expect(snapToAvailable(-2, 'machine', 'down')).toBe(0)
+  })
+
+  it('handles values already on the grid without drift', () => {
+    expect(snapToAvailable(12.5, 'dumbbell', 'nearest')).toBe(12.5)
+    expect(snapToAvailable(30, 'machine', 'up')).toBe(30)
+    expect(snapToAvailable(20, 'barbell', 'down')).toBe(20)
   })
 })
 

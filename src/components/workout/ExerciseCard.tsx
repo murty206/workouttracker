@@ -255,27 +255,31 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
 
       {/* Working sets */}
       <div className="border-t border-[#2a2a2a]">
-        {/* Long-press action menu */}
+        {/* Action menu */}
         {logMenu && (
-          <div className="px-4 py-2.5 bg-[#242424] border-b border-[#2a2a2a] flex items-center justify-between gap-2">
-            <p className="text-xs text-[#888888] flex-1 truncate">
+          <div className="px-3 py-2 bg-[#242424] border-b border-[#2a2a2a] flex items-center gap-2">
+            <p className="text-xs text-[#888888] min-w-0 flex-1 truncate">
               {logMenu.weight !== null ? `${logMenu.weight} ${weightLabel(exercise.equipmentType)}` : 'BW'} × {logMenu.reps} reps
             </p>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 shrink-0">
               <button
                 onClick={() => { setEditingLog(logMenu); setLogMenu(null) }}
-                className="text-xs bg-[#f97316] text-white px-3 py-1 rounded-lg"
+                className="text-xs font-semibold bg-[#f97316] text-white px-3 py-1.5 rounded-lg"
               >
                 Edit
               </button>
               <button
                 onClick={() => handleDeleteLog(logMenu.logId)}
-                className="text-xs bg-[#ef4444] text-white px-3 py-1 rounded-lg"
+                className="text-xs font-semibold bg-[#ef4444] text-white px-3 py-1.5 rounded-lg"
               >
                 Delete
               </button>
-              <button onClick={() => setLogMenu(null)} className="text-[#888888] px-1">
-                <X size={14} />
+              <button
+                onClick={() => setLogMenu(null)}
+                className="text-[#888888] px-1.5"
+                aria-label="Close"
+              >
+                <X size={16} />
               </button>
             </div>
           </div>

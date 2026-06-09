@@ -27,6 +27,7 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
   const [workoutLabel, setWorkoutLabel] = useState('')
   const [weekNumber, setWeekNumber] = useState<number | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [confirmFinish, setConfirmFinish] = useState(false)
 
   useEffect(() => {
     if (showSummary) return
@@ -83,9 +84,20 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
     setFinishing(false)
   }
 
+  function handleFinishTap() {
+    if (allDone) {
+      handleFinish()
+    } else {
+      setConfirmFinish(true)
+    }
+  }
+
   const totalSets = blocks.reduce((sum, b) => sum + b.te.plannedSets, 0)
   const loggedSets = blocks.reduce((sum, b) => sum + b.logs.filter(l => !l.isWarmup).length, 0)
   const allDone = loggedSets >= totalSets
+  const incompleteExerciseCount = blocks.filter(
+    b => b.logs.filter(l => !l.isWarmup).length < b.te.plannedSets
+  ).length
 
   const weekLabel = weekNumber === 13 ? 'Rest Week' : `Week ${weekNumber}`
 
@@ -136,7 +148,7 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
       {/* Finish button */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#0f0f0f] border-t border-[#2a2a2a] p-4 max-w-lg mx-auto">
         <button
-          onClick={handleFinish}
+          onClick={handleFinishTap}
           disabled={finishing || showSummary}
           className={`w-full font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 transition-colors ${
             allDone
@@ -158,6 +170,33 @@ export default function WorkoutPage({ params }: { params: Promise<{ sessionId: s
           sessionId={sessionId}
           onClose={() => router.push('/today')}
         />
+      )}
+
+      {/* Finish-with-incomplete-sets confirm dialog */}
+      {confirmFinish && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] w-full max-w-sm p-5 space-y-4">
+            <p className="font-semibold">Finish early?</p>
+            <p className="text-sm text-[#888888]">
+              You have {incompleteExerciseCount} {incompleteExerciseCount === 1 ? 'exercise' : 'exercises'} with incomplete sets
+              ({loggedSets}/{totalSets} working sets logged). Finish anyway?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmFinish(false)}
+                className="flex-1 py-3 rounded-xl bg-[#f97316] text-white text-sm font-semibold"
+              >
+                Continue workout
+              </button>
+              <button
+                onClick={() => { setConfirmFinish(false); handleFinish() }}
+                className="flex-1 py-3 rounded-xl border border-[#2a2a2a] text-sm font-semibold"
+              >
+                Finish anyway
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Leave confirm dialog */}
