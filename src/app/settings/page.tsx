@@ -440,10 +440,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-        <Link href="/exercises" className="px-4 py-2.5 flex items-center justify-between border-t border-[#2a2a2a]">
-          <p className="text-xs text-[#888888]">Fine-tune per exercise</p>
-          <ChevronRight size={14} className="text-[#444444]" />
-        </Link>
       </div>
 
       {/* Backup */}
