@@ -13,7 +13,7 @@ import {
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
-import { checkPR } from '../pr'
+import { checkPR, checkBodyweightRepPR } from '../pr'
 
 // ─── Plate math ───────────────────────────────────────────────────────────────
 
@@ -744,6 +744,28 @@ describe('snapToAvailable — equipment increments', () => {
     expect(snapToAvailable(12.5, 'dumbbell', 'nearest')).toBe(12.5)
     expect(snapToAvailable(30, 'machine', 'up')).toBe(30)
     expect(snapToAvailable(20, 'barbell', 'down')).toBe(20)
+  })
+})
+
+describe('checkBodyweightRepPR', () => {
+  it('fires when reps exceed prior max', () => {
+    // Push-Up: prior best 6 reps, this set 8 reps → PR
+    expect(checkBodyweightRepPR(8, 6)).toBe(true)
+  })
+
+  it('fires on the first ever bodyweight set', () => {
+    // priorMaxReps starts at 0 → any positive rep count fires
+    expect(checkBodyweightRepPR(6, 0)).toBe(true)
+  })
+
+  it('does not fire on a tie', () => {
+    // Crunch 40 stable: 40 == 40, no PR
+    expect(checkBodyweightRepPR(40, 40)).toBe(false)
+  })
+
+  it('does not fire when reps drop below prior max', () => {
+    // Push-Up regression: prior 12, this set 10 → not a PR
+    expect(checkBodyweightRepPR(10, 12)).toBe(false)
   })
 })
 

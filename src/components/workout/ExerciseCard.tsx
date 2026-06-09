@@ -90,12 +90,12 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
       loggedAt: new Date().toISOString(),
       ...(trimmedSetupNote ? { setupNote: trimmedSetupNote } : {}),
     })
-    if (weight !== null) {
-      const isNewPR = await detectAndSavePR(exercise.id!, weight, reps, sessionId, setLogId as number)
-      if (isNewPR) {
-        await db.setLogs.update(setLogId as number, { isPR: true })
-        flashPR(exercise.id!)
-      }
+    // detectAndSavePR handles bodyweight (weight === null) as a Rep PR on
+    // most-reps-in-a-single-set; weighted sets get the dual Strength/Reps path.
+    const isNewPR = await detectAndSavePR(exercise.id!, weight, reps, sessionId, setLogId as number)
+    if (isNewPR) {
+      await db.setLogs.update(setLogId as number, { isPR: true })
+      flashPR(exercise.id!)
     }
     if (weight !== null) setCurrentWeight(weight.toString())
     setCurrentReps(reps.toString())
