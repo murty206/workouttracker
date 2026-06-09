@@ -9,6 +9,7 @@ import {
   decideProgression,
   computeDeloadWeight,
   computeNextCardio,
+  snapToAvailable,
 } from '../progression'
 import { remainingSeconds } from '../../components/workout/RestTimer'
 import { isoWeekStart, setVolume, totalVolume, weeklyVolume } from '../volume'
@@ -659,6 +660,55 @@ describe('checkPR — isolation/high-rep progression', () => {
     expect(checkPR({
       weightKg: 2.5, reps: 16, priorMaxWeight: 5, priorMaxRepsAtMaxWeight: 8,
     })).toEqual({ strength: false, reps: false })
+  })
+})
+
+describe('snapToAvailable — equipment increments', () => {
+  it('snaps dumbbell weights to the 2.5 kg grid', () => {
+    // The 11.25 (10 + old 1.25 increment) case the user actually saw
+    expect(snapToAvailable(11.25, 'dumbbell', 'down')).toBe(10)
+    expect(snapToAvailable(11.25, 'dumbbell', 'up')).toBe(12.5)
+    // 11.25 / 2.5 = 4.5 → Math.round half-up → 5 * 2.5 = 12.5
+    expect(snapToAvailable(11.25, 'dumbbell', 'nearest')).toBe(12.5)
+  })
+
+  it('rounds half-step values per direction', () => {
+    // 6.25 / 2.5 = 2.5 → nearest 3 → 7.5
+    expect(snapToAvailable(6.25, 'dumbbell', 'down')).toBe(5)
+    expect(snapToAvailable(6.25, 'dumbbell', 'up')).toBe(7.5)
+    expect(snapToAvailable(6.25, 'dumbbell', 'nearest')).toBe(7.5)
+    // 3.75 / 2.5 = 1.5 → nearest 2 → 5
+    expect(snapToAvailable(3.75, 'dumbbell', 'down')).toBe(2.5)
+    expect(snapToAvailable(3.75, 'dumbbell', 'up')).toBe(5)
+    expect(snapToAvailable(3.75, 'dumbbell', 'nearest')).toBe(5)
+  })
+
+  it('snaps machine weights to the 5 kg grid', () => {
+    expect(snapToAvailable(27.5, 'machine', 'down')).toBe(25)
+    expect(snapToAvailable(27.5, 'machine', 'up')).toBe(30)
+    expect(snapToAvailable(32, 'machine', 'nearest')).toBe(30)
+  })
+
+  it('snaps barbell to 2.5 kg per side', () => {
+    expect(snapToAvailable(42.5, 'barbell', 'nearest')).toBe(42.5) // already on grid
+    expect(snapToAvailable(43.75, 'barbell', 'up')).toBe(45)
+    expect(snapToAvailable(43.75, 'barbell', 'down')).toBe(42.5)
+  })
+
+  it('passes through cardio and bodyweight unchanged', () => {
+    expect(snapToAvailable(11.25, 'bodyweight', 'up')).toBe(11.25)
+    expect(snapToAvailable(7, 'cardio', 'down')).toBe(7)
+  })
+
+  it('returns 0 for non-positive input on weighted equipment', () => {
+    expect(snapToAvailable(0, 'dumbbell', 'nearest')).toBe(0)
+    expect(snapToAvailable(-2, 'machine', 'down')).toBe(0)
+  })
+
+  it('handles values already on the grid without drift', () => {
+    expect(snapToAvailable(12.5, 'dumbbell', 'nearest')).toBe(12.5)
+    expect(snapToAvailable(30, 'machine', 'up')).toBe(30)
+    expect(snapToAvailable(20, 'barbell', 'down')).toBe(20)
   })
 })
 
