@@ -182,6 +182,41 @@ describe('evaluatePerformance — fixed scheme (5×5)', () => {
   })
 })
 
+// A10 — defensive coverage for the upper==lower case (e.g. DRD's "3×8"
+// scheme). The user reported seeing a DECREASE prescription after hitting
+// 8/8/8 on this scheme; the underlying 11.25 kg artifact turned out to be
+// stale data, not an evaluator bug. These tests pin the correct behavior
+// so the same misdiagnosis can't sneak back through a future refactor.
+describe('evaluatePerformance — single-number scheme (3×8)', () => {
+  const single = { lower: 8, upper: 8, isAmrap: false }
+
+  it('INCREASE when every set lands exactly on target (no overshoot)', () => {
+    // The exact case the user observed: DRD 12.5 × 8/8/8 must not return DECREASE.
+    expect(evaluatePerformance([8, 8, 8], single)).toBe('INCREASE')
+  })
+
+  it('INCREASE_2 when ≥2 sets exceed the target', () => {
+    expect(evaluatePerformance([9, 9, 8], single)).toBe('INCREASE_2')
+    expect(evaluatePerformance([10, 9, 8], single)).toBe('INCREASE_2')
+  })
+
+  it('INCREASE when only one set exceeds the target', () => {
+    expect(evaluatePerformance([9, 8, 8], single)).toBe('INCREASE')
+  })
+
+  it('DECREASE when even one set drops below', () => {
+    expect(evaluatePerformance([7, 8, 8], single)).toBe('DECREASE')
+    expect(evaluatePerformance([8, 7, 8], single)).toBe('DECREASE')
+  })
+
+  it('does not mistake exact-target for under-target', () => {
+    // 8 < 8 must evaluate false — that mistake would push the user backwards
+    // even when they hit the prescription perfectly.
+    expect(evaluatePerformance([8, 8, 8], single)).not.toBe('DECREASE')
+    expect(evaluatePerformance([8, 8, 8], single)).not.toBe('SAME')
+  })
+})
+
 describe('evaluatePerformance — AMRAP (5+)', () => {
   const amrap = { lower: 5, upper: null, isAmrap: true }
 
