@@ -177,6 +177,20 @@ export default function SettingsPage() {
     <div className="py-6 space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
+      {/* Program */}
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a2a2a]">
+          <p className="text-xs text-[#888888] uppercase tracking-wider">Program</p>
+        </div>
+        <Link href="/program" className="px-4 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Program Overview</p>
+            <p className="text-xs text-[#888888] mt-0.5">Weekly plan, status, and session history</p>
+          </div>
+          <ChevronRight size={16} className="text-[#444444]" />
+        </Link>
+      </div>
+
       {/* Profile */}
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
         <div className="px-4 py-3 border-b border-[#2a2a2a]">
