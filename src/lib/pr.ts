@@ -39,6 +39,13 @@ export function checkPR(input: PRCheckInput): PRCheckResult {
   return { strength: isStrength, reps: isReps }
 }
 
+// Bodyweight Rep PR: there is no weight to compare, only single-set rep count.
+// Fires when this set has more reps than any prior bodyweight set for the same
+// exercise. There is no Strength PR analogue — the "weight" is constant.
+export function checkBodyweightRepPR(reps: number, priorMaxReps: number): boolean {
+  return reps > priorMaxReps
+}
+
 // ─── DB-facing PR detection ───────────────────────────────────────────────────
 
 async function getPriorMaxes(exerciseId: number): Promise<{
@@ -62,7 +69,7 @@ async function getPriorMaxes(exerciseId: number): Promise<{
 
 async function upsertSessionPR(
   exerciseId: number,
-  weightKg: number,
+  weightKg: number | null,
   reps: number,
   sessionId: number,
   setLogId: number,
@@ -77,7 +84,8 @@ async function upsertSessionPR(
     exerciseId,
     weightKg,
     reps,
-    estimatedOneRepMax: epley(weightKg, reps),
+    // Epley is meaningless without a weight; bodyweight rows store 0.
+    estimatedOneRepMax: weightKg === null ? 0 : epley(weightKg, reps),
     achievedAt: new Date().toISOString(),
     sessionId,
     setLogId,
@@ -109,7 +117,21 @@ export async function detectAndSavePR(
   sessionId: number,
   setLogId: number,
 ): Promise<boolean> {
-  if (weightKg === null || weightKg === 0) return false
+  // Bodyweight branch: no weight to compare, only a Rep PR for "most reps in
+  // a single set ever". priorMax considers any prior bodyweight working set
+  // for this exercise.
+  if (weightKg === null) {
+    const allLogs = await db.setLogs
+      .where('exerciseId').equals(exerciseId)
+      .filter(l => !l.isWarmup && l.weightKg === null && l.id !== setLogId)
+      .toArray()
+    const priorMaxReps = allLogs.reduce((m, l) => Math.max(m, l.reps), 0)
+    if (!checkBodyweightRepPR(reps, priorMaxReps)) return false
+    await upsertSessionPR(exerciseId, null, reps, sessionId, setLogId, 'reps')
+    return true
+  }
+
+  if (weightKg === 0) return false
 
   // Compare against the set's own session-history too — but exclude the
   // current set (it's just been logged) by filtering out setLogId.
@@ -143,9 +165,11 @@ export async function detectAndSavePR(
 }
 
 // Rebuild personalRecords + setLogs.isPR for one exercise by replaying all
-// working sets in chronological order. Each set is evaluated against the
+// working sets in chronological order. Weighted sets evaluate against the
 // running max-weight / max-reps-at-max-weight; both Strength and Rep PRs
-// can fire. Intra-session dedup: one record per (sessionId, prType).
+// can fire. Bodyweight sets evaluate against a single running max-reps
+// counter and only Rep PRs fire. Intra-session dedup: one record per
+// (sessionId, prType).
 export async function rebuildPRsForExercise(exerciseId: number): Promise<void> {
   const existing = await db.personalRecords
     .where('exerciseId').equals(exerciseId)
@@ -154,17 +178,34 @@ export async function rebuildPRsForExercise(exerciseId: number): Promise<void> {
 
   const logs = await db.setLogs
     .where('exerciseId').equals(exerciseId)
-    .filter(l => !l.isWarmup && l.weightKg !== null && l.weightKg > 0)
+    .filter(l => !l.isWarmup && (l.weightKg === null || l.weightKg > 0))
     .sortBy('loggedAt')
 
   let maxWeight = 0
   let maxRepsAtMaxWeight = 0
-  const sessionRecords = new Map<string, { setLogId: number; weightKg: number; reps: number; achievedAt: string }>()
+  let bodyweightMaxReps = 0
+  const sessionRecords = new Map<
+    string,
+    { setLogId: number; weightKg: number | null; reps: number; achievedAt: string }
+  >()
 
   // First pass: scan logs, decide each set's PR contributions.
   for (const log of logs) {
+    if (log.weightKg === null) {
+      if (checkBodyweightRepPR(log.reps, bodyweightMaxReps)) {
+        sessionRecords.set(`${log.sessionId}:reps`, {
+          setLogId: log.id!,
+          weightKg: null,
+          reps: log.reps,
+          achievedAt: log.loggedAt,
+        })
+      }
+      if (log.reps > bodyweightMaxReps) bodyweightMaxReps = log.reps
+      continue
+    }
+
     const result = checkPR({
-      weightKg: log.weightKg!,
+      weightKg: log.weightKg,
       reps: log.reps,
       priorMaxWeight: maxWeight,
       priorMaxRepsAtMaxWeight: maxRepsAtMaxWeight,
@@ -173,7 +214,7 @@ export async function rebuildPRsForExercise(exerciseId: number): Promise<void> {
     if (result.strength) {
       sessionRecords.set(`${log.sessionId}:strength`, {
         setLogId: log.id!,
-        weightKg: log.weightKg!,
+        weightKg: log.weightKg,
         reps: log.reps,
         achievedAt: log.loggedAt,
       })
@@ -181,15 +222,14 @@ export async function rebuildPRsForExercise(exerciseId: number): Promise<void> {
     if (result.reps) {
       sessionRecords.set(`${log.sessionId}:reps`, {
         setLogId: log.id!,
-        weightKg: log.weightKg!,
+        weightKg: log.weightKg,
         reps: log.reps,
         achievedAt: log.loggedAt,
       })
     }
 
-    // Update running maxes after considering this set
-    if (log.weightKg! > maxWeight) {
-      maxWeight = log.weightKg!
+    if (log.weightKg > maxWeight) {
+      maxWeight = log.weightKg
       maxRepsAtMaxWeight = log.reps
     } else if (log.weightKg === maxWeight && log.reps > maxRepsAtMaxWeight) {
       maxRepsAtMaxWeight = log.reps
@@ -210,7 +250,8 @@ export async function rebuildPRsForExercise(exerciseId: number): Promise<void> {
       exerciseId,
       weightKg: rec.weightKg,
       reps: rec.reps,
-      estimatedOneRepMax: epley(rec.weightKg, rec.reps),
+      // Epley is meaningless for bodyweight; store 0 as a sentinel.
+      estimatedOneRepMax: rec.weightKg === null ? 0 : epley(rec.weightKg, rec.reps),
       achievedAt: rec.achievedAt,
       sessionId,
       setLogId: rec.setLogId,
