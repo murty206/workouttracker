@@ -1,28 +1,15 @@
 'use client'
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronDown, ChevronRight, CheckCircle2, SkipForward, Circle, Dot } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { db } from '@/lib/db'
-import { getProgramProgress } from '@/lib/program'
-import { formatWeight } from '@/lib/weight'
-import { totalVolume } from '@/lib/volume'
-import type { ProgramWeek, WorkoutTemplate, TemplateExercise, Exercise, Session, SetLog } from '@/types'
+import type { TemplateExercise, Exercise } from '@/types'
 
-type WorkoutStatus = 'completed' | 'skipped' | 'current' | 'upcoming'
+type WorkoutLabel = 'A' | 'B' | 'C'
 
-interface TemplateView {
-  template: WorkoutTemplate
+interface WorkoutBlueprint {
+  label: WorkoutLabel
   exercises: { te: TemplateExercise; exercise: Exercise }[]
-  status: WorkoutStatus
-  session?: Session
-  sessionVolume?: number
-}
-
-interface WeekView {
-  week: ProgramWeek
-  isDeload: boolean
-  templates: TemplateView[]
 }
 
 export default function ProgramOverviewPage() {
@@ -30,84 +17,35 @@ export default function ProgramOverviewPage() {
     const program = await db.programs.where('isActive').equals(1).first()
     if (!program) return null
 
-    const progress = await getProgramProgress()
-    const weeks = await db.programWeeks
+    // Week 1 templates are the canonical structure reference. Edit Workouts
+    // propagates exercise changes to every week of the active program, so
+    // these reflect the user's current setup, not the original seed.
+    const firstWeek = await db.programWeeks
       .where('programId').equals(program.id!)
-      .sortBy('weekNumber')
+      .filter(w => w.weekNumber === 1)
+      .first()
+    if (!firstWeek) return null
 
-    const allSessions = await db.sessions.toArray()
-    const sessionByTemplateId = new Map<number, Session>()
-    for (const s of allSessions) {
-      if (s.workoutTemplateId != null) sessionByTemplateId.set(s.workoutTemplateId, s)
+    const templates = await db.workoutTemplates
+      .where('programWeekId').equals(firstWeek.id!)
+      .sortBy('orderInWeek')
+
+    const blueprints: WorkoutBlueprint[] = []
+    for (const tmpl of templates) {
+      const tes = await db.templateExercises
+        .where('workoutTemplateId').equals(tmpl.id!)
+        .sortBy('orderInWorkout')
+      const exercises = await Promise.all(
+        tes.map(async te => ({
+          te,
+          exercise: (await db.exercises.get(te.exerciseId))!,
+        })),
+      )
+      blueprints.push({ label: tmpl.label as WorkoutLabel, exercises })
     }
 
-    const weekViews: WeekView[] = []
-    for (const week of weeks) {
-      const isDeload = week.weekNumber > program.totalWeeks
-      const templates = await db.workoutTemplates
-        .where('programWeekId').equals(week.id!)
-        .sortBy('orderInWeek')
-
-      const templateViews: TemplateView[] = []
-      for (const template of templates) {
-        const tes = await db.templateExercises
-          .where('workoutTemplateId').equals(template.id!)
-          .sortBy('orderInWorkout')
-        const exercises = await Promise.all(
-          tes.map(async te => {
-            const exercise = await db.exercises.get(te.exerciseId)
-            return { te, exercise: exercise! }
-          })
-        )
-
-        const session = sessionByTemplateId.get(template.id!)
-        let status: WorkoutStatus
-        if (session?.completedAt && !session.skipped) status = 'completed'
-        else if (session?.skipped) status = 'skipped'
-        else if (week.weekNumber === progress.weekNumber && template.label === progress.workoutLabel)
-          status = 'current'
-        else status = 'upcoming'
-
-        let sessionVolume: number | undefined
-        if (status === 'completed' && session?.id) {
-          const logs = await db.setLogs.where('sessionId').equals(session.id).toArray()
-          const vol = Math.round(totalVolume(logs))
-          if (vol > 0) sessionVolume = vol
-        }
-
-        templateViews.push({ template, exercises, status, session, sessionVolume })
-      }
-
-      weekViews.push({ week, isDeload, templates: templateViews })
-    }
-
-    const expectedSessionsPerWeek = 3
-    const totalWeeksLabel = program.totalWeeks
-    const startDate = program.startDate ? new Date(program.startDate) : null
-    let estimatedEndDate: Date | null = null
-    if (startDate) {
-      const totalWeeks = program.totalWeeks + 1 // training + deload
-      estimatedEndDate = new Date(startDate.getTime() + totalWeeks * 7 * 24 * 3600 * 1000)
-    }
-
-    return {
-      program,
-      progress,
-      weekViews,
-      expectedSessionsPerWeek,
-      totalWeeksLabel,
-      startDate,
-      estimatedEndDate,
-    }
+    return { program, blueprints }
   }, [])
-
-  // Current week defaults expanded; users can fold/unfold the rest.
-  const [openWeeks, setOpenWeeks] = useState<Set<number>>(new Set())
-  const currentWeek = data?.progress.weekNumber
-  useEffect(() => {
-    if (currentWeek === undefined) return
-    setOpenWeeks(prev => (prev.size === 0 ? new Set([currentWeek]) : prev))
-  }, [currentWeek])
 
   if (!data) {
     return (
@@ -117,17 +55,8 @@ export default function ProgramOverviewPage() {
     )
   }
 
-  const { program, progress, weekViews, totalWeeksLabel, startDate, estimatedEndDate } = data
-  const progressPct = Math.min(100, (progress.completedCount / progress.totalSessions) * 100)
-
-  function toggleWeek(n: number) {
-    setOpenWeeks(prev => {
-      const next = new Set(prev)
-      if (next.has(n)) next.delete(n)
-      else next.add(n)
-      return next
-    })
-  }
+  const { program, blueprints } = data
+  const deloadWeek = program.totalWeeks + 1
 
   return (
     <div className="py-6 space-y-6 pb-12">
@@ -135,132 +64,105 @@ export default function ProgramOverviewPage() {
         <Link href="/settings" className="text-[#888888]">
           <ChevronLeft size={24} />
         </Link>
-        <div>
-          <h1 className="text-xl font-bold">Program Overview</h1>
-          <p className="text-xs text-[#888888]">{program.name}</p>
-        </div>
+        <h1 className="text-xl font-bold">Program Overview</h1>
       </div>
 
-      {/* Status card */}
-      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4 space-y-3">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm text-[#888888]">
-            {progress.isComplete
-              ? 'Program complete'
-              : progress.weekNumber > totalWeeksLabel
-              ? 'Deload week'
-              : `Week ${progress.weekNumber} of ${totalWeeksLabel}`}
-          </p>
-          {!progress.isComplete && (
-            <p className="text-sm text-[#f97316] font-semibold">Workout {progress.workoutLabel}</p>
-          )}
-        </div>
-        <div className="h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden">
-          <div className="h-full bg-[#f97316] rounded-full" style={{ width: `${progressPct}%` }} />
-        </div>
-        <div className="flex items-center justify-between text-xs text-[#888888]">
-          <span>{progress.completedCount} of {progress.totalSessions} sessions completed</span>
-          <span>{Math.round(progressPct)}%</span>
-        </div>
-        {(startDate || estimatedEndDate) && (
-          <div className="flex items-center justify-between text-xs text-[#888888] pt-2 border-t border-[#2a2a2a]">
-            <span>
-              Started {startDate ? formatDate(startDate) : '—'}
-            </span>
-            <span>
-              {estimatedEndDate ? `Est. end ${formatDate(estimatedEndDate)}` : ''}
-            </span>
-          </div>
-        )}
-      </div>
+      {/* Structure */}
+      <section className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4 space-y-2">
+        <p className="text-xs text-[#888888] uppercase tracking-wider">Structure</p>
+        <ul className="text-sm space-y-1 list-disc list-inside marker:text-[#444444]">
+          <li>{program.totalWeeks} weeks of training + 1 deload week (W{deloadWeek})</li>
+          <li>3 workouts per week — A, B, C — rotated in order</li>
+          <li>Cardio (Incline Walk) appended to every session</li>
+        </ul>
+      </section>
 
-      {/* Weekly accordion */}
-      <div className="space-y-2">
-        {weekViews.map(({ week, isDeload, templates }) => {
-          const open = openWeeks.has(week.weekNumber)
-          const completedInWeek = templates.filter(t => t.status === 'completed').length
-          const skippedInWeek = templates.filter(t => t.status === 'skipped').length
-          return (
-            <div key={week.id} className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
-              <button
-                onClick={() => toggleWeek(week.weekNumber)}
-                className="w-full px-4 py-3 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  {open ? <ChevronDown size={18} className="text-[#888888]" /> : <ChevronRight size={18} className="text-[#888888]" />}
-                  <div className="text-left min-w-0">
-                    <p className="text-sm font-semibold">
-                      {isDeload ? 'Deload Week' : `Week ${week.weekNumber}`}
-                    </p>
-                    <p className="text-xs text-[#888888] mt-0.5">
-                      {completedInWeek > 0 && <span>{completedInWeek} done</span>}
-                      {completedInWeek > 0 && skippedInWeek > 0 && <span> · </span>}
-                      {skippedInWeek > 0 && <span>{skippedInWeek} skipped</span>}
-                      {completedInWeek === 0 && skippedInWeek === 0 && (
-                        week.weekNumber === progress.weekNumber ? 'In progress' : 'Upcoming'
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </button>
-              {open && (
-                <div className="border-t border-[#2a2a2a] divide-y divide-[#2a2a2a]">
-                  {templates.map(t => (
-                    <TemplateCard key={t.template.id} view={t} />
-                  ))}
-                </div>
-              )}
+      {/* Weekly split */}
+      <section className="space-y-2">
+        <p className="text-xs text-[#888888] uppercase tracking-wider px-1">Weekly Split</p>
+        {blueprints.map(b => (
+          <WorkoutCard key={b.label} blueprint={b} />
+        ))}
+      </section>
+
+      {/* Rep schemes glossary */}
+      <section className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4 space-y-2">
+        <p className="text-xs text-[#888888] uppercase tracking-wider">Rep Schemes</p>
+        <ul className="text-sm space-y-2">
+          <Glossary term="N">
+            Fixed target. All sets aim for exactly N reps. e.g. <code>3×8</code> = 3 sets of 8.
+          </Glossary>
+          <Glossary term="N-M">
+            Range. Hit the lower bound to hold; hit the upper to bump. e.g. <code>3×8-12</code>.
+          </Glossary>
+          <Glossary term="N+">
+            AMRAP — last set is &quot;as many reps as possible&quot; from N. e.g. <code>4×5+</code> = 3 sets of 5 then a final all-out set.
+          </Glossary>
+          <Glossary term="max">
+            Bodyweight or set-to-failure. Rep count drives the Rep PR; no weight progression.
+          </Glossary>
+        </ul>
+      </section>
+
+      {/* Progression rules */}
+      <section className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4 space-y-3">
+        <p className="text-xs text-[#888888] uppercase tracking-wider">Progression</p>
+        <Rule title="Weighted lifts — median basis">
+          The median of the weights you actually lifted (not the planned weight) drives the next prescription. Hit the upper rep target on every set → +1 increment. Two or more sets above the upper → +2 increments. Worst set below the lower → −1 increment.
+        </Rule>
+        <Rule title="Dumbbell triple-confirm">
+          Small dumbbells need 3 consecutive INCREASE sessions before bumping. Reason: 2.5 → 5 kg is a 100 % jump and you almost certainly aren&apos;t ready for it after one good session.
+        </Rule>
+        <Rule title="AMRAP overshoot bonus">
+          On <code>N+</code> schemes, the last set decides. Last set ≥ 1.5 × N → INCREASE. Last set ≥ 2 × N → INCREASE_2 (capped on dumbbells per the rule above).
+        </Rule>
+        <Rule title="Cardio weekly rotation">
+          Even weeks bump incline by +0.5 %, odd weeks bump speed by +0.25 km/h. When one axis is capped (12 % incline / 5.5 km/h), the bump falls through to the other.
+        </Rule>
+        <Rule title="Deload">
+          Week {deloadWeek} = 50 % of W{program.totalWeeks} lifted median, floored to the nearest equipment step. Recovery week — not maintenance.
+        </Rule>
+      </section>
+
+      {/* Tools */}
+      <section className="space-y-2">
+        <p className="text-xs text-[#888888] uppercase tracking-wider px-1">Tools</p>
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden divide-y divide-[#2a2a2a]">
+          <Link href="/program/edit/A" className="px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Edit Workouts</p>
+              <p className="text-xs text-[#888888] mt-0.5">Swap, add, remove, or reorder exercises in A / B / C</p>
             </div>
-          )
-        })}
-      </div>
+            <ChevronRight size={16} className="text-[#444444]" />
+          </Link>
+          <Link href="/exercises" className="px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Exercises</p>
+              <p className="text-xs text-[#888888] mt-0.5">Library, alternatives, per-exercise rest and notes</p>
+            </div>
+            <ChevronRight size={16} className="text-[#444444]" />
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }
 
-function TemplateCard({ view }: { view: TemplateView }) {
-  const { template, exercises, status, sessionVolume } = view
-  const StatusIcon = status === 'completed' ? CheckCircle2
-    : status === 'skipped' ? SkipForward
-    : status === 'current' ? Dot
-    : Circle
-  const statusColor = status === 'completed' ? 'text-[#22c55e]'
-    : status === 'skipped' ? 'text-[#888888]'
-    : status === 'current' ? 'text-[#f97316]'
-    : 'text-[#444444]'
-  const statusLabel = status === 'completed' ? 'Completed'
-    : status === 'skipped' ? 'Skipped'
-    : status === 'current' ? 'Current'
-    : 'Upcoming'
-
+function WorkoutCard({ blueprint }: { blueprint: WorkoutBlueprint }) {
   return (
-    <div className="px-4 py-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <StatusIcon size={16} className={statusColor} />
-          <p className="text-sm font-semibold">Workout {template.label}</p>
-          <span className={`text-[10px] uppercase tracking-wider ${statusColor}`}>{statusLabel}</span>
-        </div>
-        {sessionVolume !== undefined && (
-          <p className="text-xs text-[#888888] tabular-nums">{sessionVolume.toLocaleString()} kg</p>
-        )}
+    <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#2a2a2a]">
+        <p className="text-sm font-bold">Workout {blueprint.label}</p>
       </div>
       <div className="divide-y divide-[#2a2a2a]/40">
-        {exercises.map(({ te, exercise }) => (
-          <div key={te.id} className={`py-1.5 flex items-center justify-between gap-3 ${status === 'skipped' ? 'opacity-50' : ''}`}>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm truncate">{exercise.name}</p>
-              <p className="text-xs text-[#888888]">
-                {exercise.equipmentType === 'cardio'
-                  ? `${te.cardioDurationMin ?? '—'} min · ${te.cardioInclinePct ?? '—'}% · ${te.cardioSpeedKmh ?? '—'} km/h`
-                  : `${te.plannedSets} × ${te.plannedReps}`}
-              </p>
-            </div>
-            {exercise.equipmentType !== 'bodyweight' && exercise.equipmentType !== 'cardio' && te.plannedWeightKg !== null && (
-              <p className="text-xs text-[#f97316] tabular-nums shrink-0">
-                {formatWeight(te.plannedWeightKg, exercise.equipmentType)}
-              </p>
-            )}
+        {blueprint.exercises.map(({ te, exercise }) => (
+          <div key={te.id} className="px-4 py-2 flex items-center justify-between gap-3">
+            <p className="text-sm truncate">{exercise.name}</p>
+            <p className="text-xs text-[#888888] tabular-nums shrink-0">
+              {exercise.equipmentType === 'cardio'
+                ? `${te.cardioDurationMin ?? '—'} min`
+                : `${te.plannedSets} × ${te.plannedReps}`}
+            </p>
           </div>
         ))}
       </div>
@@ -268,6 +170,20 @@ function TemplateCard({ view }: { view: TemplateView }) {
   )
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+function Glossary({ term, children }: { term: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <code className="text-[#f97316] text-xs font-mono shrink-0 mt-0.5 min-w-[3rem]">{term}</code>
+      <span className="text-xs text-[#a8a8a8]">{children}</span>
+    </li>
+  )
+}
+
+function Rule({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-xs text-[#888888] mt-0.5 leading-relaxed">{children}</p>
+    </div>
+  )
 }
