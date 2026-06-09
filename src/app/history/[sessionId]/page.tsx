@@ -7,6 +7,7 @@ import { Calendar, ChevronLeft, Clock, Trophy, MoreHorizontal, X } from 'lucide-
 import { weightLabel } from '@/lib/weight'
 import { rebuildPRsForExercise } from '@/lib/pr'
 import { totalVolume } from '@/lib/volume'
+import { WorkoutSummary } from '@/components/workout/WorkoutSummary'
 
 type LogEntry = { logId: number; weight: number | null; reps: number; exerciseId: number }
 
@@ -105,13 +106,8 @@ export default function SessionDetailPage() {
         )}
       </div>
 
-      {/* Session note */}
-      {session.notes && (
-        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] px-4 py-3">
-          <p className="text-xs text-[#888888] mb-1">Session note</p>
-          <p className="text-sm">{session.notes}</p>
-        </div>
-      )}
+      {/* Summary (volume, sets, PRs, compare to last same-label, session note) */}
+      {session.completedAt && <WorkoutSummary sessionId={sessionId} mode="history" />}
 
       {/* Exercises */}
       {exercises.length === 0 ? (
