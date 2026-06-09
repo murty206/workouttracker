@@ -50,74 +50,95 @@ export function WorkoutSummary(props: Props) {
 
   useEffect(() => {
     async function load() {
-      const session = await db.sessions.get(sessionId)
-      if (!session) return
-
-      const durationLabel = session.startedAt && session.completedAt
-        ? `${Math.round(
-            (new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()) / 60000,
-          )} min`
-        : ''
-
-      const logs: SetLog[] = await db.setLogs.where('sessionId').equals(sessionId).toArray()
-      const volume = Math.round(totalVolume(logs))
-      const workingSetCount = logs.filter(l => !l.isWarmup).length
-
-      const sessionPRs = await db.personalRecords.where('sessionId').equals(sessionId).toArray()
-      const groups = new Map<number, PRGroup>()
-      for (const pr of sessionPRs) {
-        const exercise = await db.exercises.get(pr.exerciseId)
-        if (!exercise) continue
-        const existing = groups.get(pr.setLogId)
-        if (existing) {
-          existing.types.push(pr.prType)
-        } else {
-          groups.set(pr.setLogId, {
-            exercise,
-            weightKg: pr.weightKg,
-            reps: pr.reps,
-            types: [pr.prType],
+      try {
+        const session = await db.sessions.get(sessionId)
+        if (!session) {
+          setData({
+            session: undefined,
+            durationLabel: '',
+            volume: 0,
+            workingSetCount: 0,
+            prs: [],
+            comparison: null,
           })
+          return
         }
-      }
 
-      // Same-label comparison: find the most recent prior completed session
-      // with the same workoutLabel. Volume delta gives a single-number
-      // signal of "did this session move me forward vs the last one of its
-      // kind?" Skipped sessions don't count.
-      let comparison: SummaryData['comparison'] = null
-      const priorSameLabel = await db.sessions
-        .where('startedAt').below(session.startedAt)
-        .filter(s =>
-          s.workoutLabel === session.workoutLabel &&
-          !!s.completedAt &&
-          !s.skipped &&
-          s.id !== session.id,
-        )
-        .reverse()
-        .sortBy('startedAt')
-      const prev = priorSameLabel[0]
-      if (prev?.id) {
-        const prevLogs = await db.setLogs.where('sessionId').equals(prev.id).toArray()
-        const prevVolume = Math.round(totalVolume(prevLogs))
-        if (prevVolume > 0 && volume > 0) {
-          comparison = {
-            prevSession: prev,
-            prevVolume,
-            deltaPct: Math.round(((volume - prevVolume) / prevVolume) * 100),
+        const durationLabel = session.startedAt && session.completedAt
+          ? `${Math.round(
+              (new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()) / 60000,
+            )} min`
+          : ''
+
+        const logs: SetLog[] = await db.setLogs.where('sessionId').equals(sessionId).toArray()
+        const volume = Math.round(totalVolume(logs))
+        const workingSetCount = logs.filter(l => !l.isWarmup).length
+
+        const sessionPRs = await db.personalRecords.where('sessionId').equals(sessionId).toArray()
+        const groups = new Map<number, PRGroup>()
+        for (const pr of sessionPRs) {
+          const exercise = await db.exercises.get(pr.exerciseId)
+          if (!exercise) continue
+          const existing = groups.get(pr.setLogId)
+          if (existing) {
+            existing.types.push(pr.prType)
+          } else {
+            groups.set(pr.setLogId, {
+              exercise,
+              weightKg: pr.weightKg,
+              reps: pr.reps,
+              types: [pr.prType],
+            })
           }
         }
-      }
 
-      setData({
-        session,
-        durationLabel,
-        volume,
-        workingSetCount,
-        prs: Array.from(groups.values()),
-        comparison,
-      })
-      setNote(session.notes ?? '')
+        // Same-label comparison: find the most recent prior completed session
+        // with the same workoutLabel. Sort ascending and take the last element
+        // — Dexie's .reverse().sortBy() doesn't compose the way you'd expect
+        // (sortBy resorts and undoes the reverse intent).
+        let comparison: SummaryData['comparison'] = null
+        const priorSameLabel = await db.sessions
+          .where('startedAt').below(session.startedAt)
+          .filter(s =>
+            s.workoutLabel === session.workoutLabel &&
+            !!s.completedAt &&
+            !s.skipped &&
+            s.id !== session.id,
+          )
+          .sortBy('startedAt')
+        const prev = priorSameLabel[priorSameLabel.length - 1]
+        if (prev?.id) {
+          const prevLogs = await db.setLogs.where('sessionId').equals(prev.id).toArray()
+          const prevVolume = Math.round(totalVolume(prevLogs))
+          if (prevVolume > 0 && volume > 0) {
+            comparison = {
+              prevSession: prev,
+              prevVolume,
+              deltaPct: Math.round(((volume - prevVolume) / prevVolume) * 100),
+            }
+          }
+        }
+
+        setData({
+          session,
+          durationLabel,
+          volume,
+          workingSetCount,
+          prs: Array.from(groups.values()),
+          comparison,
+        })
+        setNote(session.notes ?? '')
+      } catch (err) {
+        console.error('WorkoutSummary load failed:', err)
+        setData({
+          session: undefined,
+          durationLabel: '',
+          volume: 0,
+          workingSetCount: 0,
+          prs: [],
+          comparison: null,
+        })
+      }
     }
     load()
   }, [sessionId])
