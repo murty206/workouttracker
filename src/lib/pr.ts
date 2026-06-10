@@ -48,25 +48,6 @@ export function checkBodyweightRepPR(reps: number, priorMaxReps: number): boolea
 
 // ─── DB-facing PR detection ───────────────────────────────────────────────────
 
-async function getPriorMaxes(exerciseId: number): Promise<{
-  maxWeight: number
-  maxRepsAtMaxWeight: number
-}> {
-  const logs = await db.setLogs
-    .where('exerciseId').equals(exerciseId)
-    .filter(l => !l.isWarmup && l.weightKg !== null && l.weightKg > 0)
-    .toArray()
-
-  if (logs.length === 0) return { maxWeight: 0, maxRepsAtMaxWeight: 0 }
-
-  const maxWeight = logs.reduce((m, l) => Math.max(m, l.weightKg!), 0)
-  const maxRepsAtMaxWeight = logs
-    .filter(l => l.weightKg === maxWeight)
-    .reduce((m, l) => Math.max(m, l.reps), 0)
-
-  return { maxWeight, maxRepsAtMaxWeight }
-}
-
 async function upsertSessionPR(
   exerciseId: number,
   weightKg: number | null,
