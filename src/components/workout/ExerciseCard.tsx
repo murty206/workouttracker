@@ -58,14 +58,16 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
       return
     }
     let cancelled = false
+    // Sort ascending and take the last — Dexie's .reverse().sortBy() does
+    // not compose: sortBy resorts the array after building, undoing the
+    // reverse intent. Same quirk as WorkoutSummary's prior-session lookup.
     db.setLogs
       .where('exerciseId').equals(exercise.id!)
       .filter(l => !!l.setupNote)
-      .reverse()
       .sortBy('loggedAt')
       .then(logs => {
         if (cancelled) return
-        const prev = logs[0]?.setupNote
+        const prev = logs.at(-1)?.setupNote
         if (prev) setSetupNote(prev)
       })
     return () => { cancelled = true }
