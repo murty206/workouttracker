@@ -87,6 +87,10 @@ export interface Session {
   completedAt: string | null
   skipped?: boolean
   notes?: string
+  // Optional smartwatch metrics entered post-workout. null/undefined = not recorded.
+  caloriesKcal?: number | null
+  avgHr?: number | null
+  maxHr?: number | null
 }
 
 export interface SetLog {

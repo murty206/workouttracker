@@ -47,6 +47,9 @@ export function WorkoutSummary(props: Props) {
 
   const [data, setData] = useState<SummaryData | null>(null)
   const [note, setNote] = useState('')
+  const [kcal, setKcal] = useState('')
+  const [avgHr, setAvgHr] = useState('')
+  const [maxHr, setMaxHr] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -130,6 +133,9 @@ export function WorkoutSummary(props: Props) {
           comparison,
         })
         setNote(session.notes ?? '')
+        setKcal(session.caloriesKcal != null ? String(session.caloriesKcal) : '')
+        setAvgHr(session.avgHr != null ? String(session.avgHr) : '')
+        setMaxHr(session.maxHr != null ? String(session.maxHr) : '')
       } catch (err) {
         console.error('WorkoutSummary load failed:', err)
         setData({
@@ -144,6 +150,18 @@ export function WorkoutSummary(props: Props) {
     }
     load()
   }, [sessionId])
+
+  function parseNullableInt(s: string): number | null {
+    const trimmed = s.trim()
+    if (!trimmed) return null
+    const n = parseInt(trimmed, 10)
+    return Number.isNaN(n) ? null : n
+  }
+
+  async function persistHistoryField(patch: Partial<Session>) {
+    if (mode !== 'history') return
+    await db.sessions.update(sessionId, patch)
+  }
 
   if (!data) return mode === 'post-workout' ? null : (
     <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] px-4 py-6 text-center text-xs text-[#888888]">
@@ -206,6 +224,33 @@ export function WorkoutSummary(props: Props) {
           </div>
         </div>
       )}
+
+      <div className="mt-4">
+        <p className="text-xs text-[#888888] uppercase tracking-wider mb-2">Watch data</p>
+        <div className="grid grid-cols-3 gap-2">
+          <WatchField
+            label="kcal"
+            value={kcal}
+            onChange={setKcal}
+            onBlur={() => persistHistoryField({ caloriesKcal: parseNullableInt(kcal) })}
+            max={9999}
+          />
+          <WatchField
+            label="Avg HR"
+            value={avgHr}
+            onChange={setAvgHr}
+            onBlur={() => persistHistoryField({ avgHr: parseNullableInt(avgHr) })}
+            max={250}
+          />
+          <WatchField
+            label="Max HR"
+            value={maxHr}
+            onChange={setMaxHr}
+            onBlur={() => persistHistoryField({ maxHr: parseNullableInt(maxHr) })}
+            max={250}
+          />
+        </div>
+      </div>
     </>
   )
 
@@ -214,12 +259,17 @@ export function WorkoutSummary(props: Props) {
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-4">
         <p className="text-xs text-[#888888] uppercase tracking-wider mb-3">Session summary</p>
         {summaryBody}
-        {session?.notes && (
-          <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
-            <p className="text-xs text-[#888888] mb-1">Session note</p>
-            <p className="text-sm">{session.notes}</p>
-          </div>
-        )}
+        <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+          <p className="text-xs text-[#888888] mb-1">Session note</p>
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            onBlur={() => persistHistoryField({ notes: note.trim() ? note.trim() : undefined })}
+            placeholder="How did it go? (optional)"
+            rows={3}
+            className="w-full bg-[#242424] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-[#f5f5f5] placeholder-[#555555] outline-none resize-y focus:border-[#f97316]"
+          />
+        </div>
       </div>
     )
   }
@@ -250,9 +300,12 @@ export function WorkoutSummary(props: Props) {
 
         <button
           onClick={async () => {
-            if (note.trim()) {
-              await db.sessions.update(sessionId, { notes: note.trim() })
-            }
+            await db.sessions.update(sessionId, {
+              notes: note.trim() || undefined,
+              caloriesKcal: parseNullableInt(kcal),
+              avgHr: parseNullableInt(avgHr),
+              maxHr: parseNullableInt(maxHr),
+            })
             ;(props as PostWorkoutProps).onClose()
           }}
           className="w-full bg-[#f97316] text-white font-semibold py-4 rounded-2xl"
@@ -260,6 +313,38 @@ export function WorkoutSummary(props: Props) {
           Done
         </button>
       </div>
+    </div>
+  )
+}
+
+function WatchField({
+  label,
+  value,
+  onChange,
+  onBlur,
+  max,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onBlur: () => void
+  max: number
+}) {
+  return (
+    <div className="bg-[#242424] rounded-xl px-2.5 py-2 border border-[#2a2a2a] focus-within:border-[#f97316]">
+      <p className="text-[10px] text-[#888888] uppercase tracking-wider">{label}</p>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={max}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
+        onFocus={e => e.target.select()}
+        placeholder="—"
+        className="w-full bg-transparent text-base font-semibold text-[#f5f5f5] placeholder-[#555555] outline-none tabular-nums"
+      />
     </div>
   )
 }
