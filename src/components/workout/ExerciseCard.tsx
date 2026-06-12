@@ -48,11 +48,14 @@ export function ExerciseCard({ te, exercise, sessionLogs, sessionId, onSetLogged
   )
 
   // Setup note: sticky across sessions for exercises that need it. Default to
-  // the most recent setupNote on any logged set for this exercise.
+  // the most recent setupNote on any logged set for this exercise. Prefer
+  // the LAST set's note from this session — if the user refines the note
+  // between sets (e.g. set 1 "4" → set 2 "Height 5, 1 step forward"), the
+  // refined version should carry forward, not the original.
   const [setupNote, setSetupNote] = useState<string>('')
   useEffect(() => {
     if (!exercise.requiresSetupNote) return
-    const existingFromSession = sessionLogs.find(l => l.setupNote)?.setupNote
+    const existingFromSession = sessionLogs.findLast(l => !!l.setupNote)?.setupNote
     if (existingFromSession) {
       setSetupNote(existingFromSession)
       return
