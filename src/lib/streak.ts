@@ -14,13 +14,25 @@ export async function consistencyStats(): Promise<ConsistencyStats> {
     .sortBy('completedAt')
 
   const now = Date.now()
-  const fourWeeksAgo = now - 28 * 24 * 60 * 60 * 1000
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const fourWeeksAgo = now - 28 * DAY_MS
+
+  // Cap the consistency window at the program's actual age so a brand-new
+  // user isn't punished for the calendar weeks before they ever started
+  // training. If startDate is unset (no session logged yet), fall back to
+  // the full 4-week window.
+  const program = await db.programs.where('isActive').equals(1).first()
+  const programStartMs = program?.startDate ? new Date(program.startDate).getTime() : null
+  const windowStart = programStartMs != null
+    ? Math.max(programStartMs, fourWeeksAgo)
+    : fourWeeksAgo
 
   const sessionsLast4Weeks = completed.filter(
-    s => new Date(s.completedAt!).getTime() >= fourWeeksAgo
+    s => new Date(s.completedAt!).getTime() >= windowStart
   ).length
 
-  const expectedLast4Weeks = 12
+  const windowDays = Math.max(1, (now - windowStart) / DAY_MS)
+  const expectedLast4Weeks = Math.min(12, Math.max(1, Math.ceil(windowDays * 3 / 7)))
 
   // Streak: consecutive sessions (no gap > 3 days between sessions counts as consecutive)
   // Actually, treat each session as one "unit" — a streak is unbroken completed sessions
