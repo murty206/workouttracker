@@ -7,7 +7,6 @@ import { BodyweightChart } from '@/components/progress/BodyweightChart'
 import { BodyFatChart } from '@/components/progress/BodyFatChart'
 import { LeanMassChart } from '@/components/progress/LeanMassChart'
 import { StrengthScoreCard } from '@/components/progress/StrengthScoreCard'
-import { ConsistencyCard } from '@/components/progress/ConsistencyCard'
 import { VolumeChart } from '@/components/progress/VolumeChart'
 import { weeklyVolume } from '@/lib/volume'
 
@@ -34,11 +33,6 @@ export default function ProgressPage() {
       <section>
         <p className="text-xs text-[#888888] uppercase tracking-wider mb-3">Performance</p>
         <StrengthScoreCard />
-      </section>
-
-      {/* Consistency */}
-      <section>
-        <ConsistencyCard />
       </section>
 
       {/* Weekly volume trend */}
