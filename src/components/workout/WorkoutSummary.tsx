@@ -74,7 +74,9 @@ export function WorkoutSummary(props: Props) {
         const volume = Math.round(totalVolume(logs))
         const workingSetCount = logs.filter(l => !l.isWarmup).length
 
-        const sessionPRs = await db.personalRecords.where('sessionId').equals(sessionId).toArray()
+        // sessionId is not indexed on personalRecords — use filter() instead
+        // of where().equals(), which throws SchemaError on non-indexed paths.
+        const sessionPRs = await db.personalRecords.filter(pr => pr.sessionId === sessionId).toArray()
         const groups = new Map<number, PRGroup>()
         for (const pr of sessionPRs) {
           const exercise = await db.exercises.get(pr.exerciseId)
