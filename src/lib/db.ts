@@ -200,6 +200,55 @@ export class WorkoutDB extends Dexie {
         delete ex.readyForBump
       })
     })
+
+    this.version(12).stores({}).upgrade(async tx => {
+      // A17: barbell warmup tiers now read off the total bar load, not the
+      // per-side number, so a 17.5 kg/side OHP gets 2 warmups instead of 1.
+      // Recompute warmups for every existing barbell template; non-barbell
+      // tiers are unchanged so we leave those alone.
+      const barbellIds = new Set<number>()
+      await tx.table('exercises')
+        .filter((ex: Exercise) => ex.equipmentType === 'barbell')
+        .each((ex: Exercise) => { if (ex.id !== undefined) barbellIds.add(ex.id) })
+
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (!barbellIds.has(te.exerciseId)) return
+        if (te.plannedWeightKg === null) return
+        const workingKg = te.plannedWeightKg
+        const totalKg = workingKg * 2 + 20
+        if (totalKg < 30) { te.warmupWeights = []; return }
+        const fractions = totalKg >= 60 ? [0.4, 0.6, 0.8] : [0.5, 0.75]
+        te.warmupWeights = fractions.map(f => Math.floor((workingKg * f) / 2.5) * 2.5)
+      })
+    })
+
+    this.version(13).stores({}).upgrade(async tx => {
+      // The spreadsheet only specifies warmups for the main compound lifts;
+      // applyProgression was auto-generating warmups for every non-bodyweight
+      // exercise instead, so accessories drifted away from the program intent
+      // starting Week 2. Add a per-exercise usesWarmup flag and clear the
+      // warmupWeights on existing accessory templates.
+      const WARMUP_LIFTS = new Set([
+        'Bench Press',
+        'Squat',
+        'Back Squat',
+        'Over Head Press',
+        'Barbell Row',
+        'DB Shoulder Press',
+        'Dumbbell Romanian Deadlift',
+      ])
+      const noWarmupIds = new Set<number>()
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        const usesWarmup = WARMUP_LIFTS.has(ex.name)
+        ex.usesWarmup = usesWarmup
+        if (!usesWarmup && ex.id !== undefined) noWarmupIds.add(ex.id)
+      })
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (noWarmupIds.has(te.exerciseId) && te.warmupWeights && te.warmupWeights.length > 0) {
+          te.warmupWeights = []
+        }
+      })
+    })
   }
 }
 

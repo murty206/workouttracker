@@ -30,6 +30,11 @@ export interface Exercise {
   // "setup note" input above the working sets; the string is saved on each
   // SetLog for that session.
   requiresSetupNote?: boolean
+  // Whether this exercise gets auto-generated warmup sets. The spreadsheet
+  // only specifies warmups for the main compound lifts (Bench, Squat, OHP,
+  // Row, DB Shoulder Press, Dumbbell Romanian Deadlift); accessories run
+  // straight into the working sets. Undefined treated as false.
+  usesWarmup?: boolean
 }
 
 export interface UserPref {

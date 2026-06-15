@@ -138,6 +138,18 @@ for (const sheetName of weekSheets) {
   }
 }
 
+// An exercise "uses warmups" iff at least one of its scheduled occurrences
+// in the spreadsheet had warmup weights in cols E/F/G. The spreadsheet only
+// fills those for the main compound lifts; accessories stay empty.
+const usesWarmupNames = new Set<string>()
+for (const w of weeks) {
+  for (const wo of w!.workouts) {
+    for (const ex of wo.exercises) {
+      if (ex.warmupWeights.length > 0) usesWarmupNames.add(ex.exerciseName)
+    }
+  }
+}
+
 // Collect all unique exercises from Week 1 only (canonical definition)
 const week1 = weeks[0]!
 const exerciseMap = new Map<string, any>()
@@ -152,6 +164,7 @@ for (const wo of week1.workouts) {
         weightDisplay: ex.weightDisplay,
         incrementKg: ex.incrementKg,
         isCustom: false,
+        usesWarmup: usesWarmupNames.has(ex.exerciseName),
       })
     }
   }
@@ -180,6 +193,7 @@ export interface SeedExercise {
   weightDisplay: WeightDisplay
   incrementKg: number
   isCustom: boolean
+  usesWarmup?: boolean
 }
 
 export interface SeedTemplateExercise {
