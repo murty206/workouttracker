@@ -61,7 +61,15 @@ export function dotsScore(totalLiftedKg: number, bodyweightKg: number, gender: '
   return dotsCoeff(bodyweightKg, gender) * totalLiftedKg
 }
 
-const LIFT_NAMES = ['Bench Press', 'Squat', 'Over Head Press', 'Barbell Row'] as const
+// Canonical name + accepted aliases per main lift. The seed ships "Squat" but
+// users can rename exercises in Settings; the score keeps working either way.
+const LIFT_ALIASES: Record<string, string[]> = {
+  'Bench Press': ['Bench Press'],
+  'Back Squat': ['Back Squat', 'Squat'],
+  'Over Head Press': ['Over Head Press', 'Overhead Press', 'OHP'],
+  'Barbell Row': ['Barbell Row', 'Bent Over Row'],
+}
+const LIFT_NAMES = Object.keys(LIFT_ALIASES) as Array<keyof typeof LIFT_ALIASES>
 type LiftName = typeof LIFT_NAMES[number]
 
 export interface StrengthScore {
@@ -74,7 +82,11 @@ export async function strengthScore(gender: 'male' | 'female', bodyweightKg: num
   let total = 0
 
   for (const name of LIFT_NAMES) {
-    const exercise = await db.exercises.where('name').equals(name).first()
+    let exercise = undefined
+    for (const alias of LIFT_ALIASES[name]) {
+      exercise = await db.exercises.where('name').equals(alias).first()
+      if (exercise) break
+    }
     if (!exercise) {
       breakdown[name] = null
       continue

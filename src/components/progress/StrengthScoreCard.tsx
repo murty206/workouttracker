@@ -30,7 +30,7 @@ export function StrengthScoreCard() {
   const { score } = data
   const LIFT_LABELS: Record<string, string> = {
     'Bench Press': 'Bench',
-    'Squat': 'Squat',
+    'Back Squat': 'Squat',
     'Over Head Press': 'OHP',
     'Barbell Row': 'Row',
   }
