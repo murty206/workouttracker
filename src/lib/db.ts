@@ -200,6 +200,27 @@ export class WorkoutDB extends Dexie {
         delete ex.readyForBump
       })
     })
+
+    this.version(12).stores({}).upgrade(async tx => {
+      // A17: barbell warmup tiers now read off the total bar load, not the
+      // per-side number, so a 17.5 kg/side OHP gets 2 warmups instead of 1.
+      // Recompute warmups for every existing barbell template; non-barbell
+      // tiers are unchanged so we leave those alone.
+      const barbellIds = new Set<number>()
+      await tx.table('exercises')
+        .filter((ex: Exercise) => ex.equipmentType === 'barbell')
+        .each((ex: Exercise) => { if (ex.id !== undefined) barbellIds.add(ex.id) })
+
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (!barbellIds.has(te.exerciseId)) return
+        if (te.plannedWeightKg === null) return
+        const workingKg = te.plannedWeightKg
+        const totalKg = workingKg * 2 + 20
+        if (totalKg < 30) { te.warmupWeights = []; return }
+        const fractions = totalKg >= 60 ? [0.4, 0.6, 0.8] : [0.5, 0.75]
+        te.warmupWeights = fractions.map(f => Math.floor((workingKg * f) / 2.5) * 2.5)
+      })
+    })
   }
 }
 

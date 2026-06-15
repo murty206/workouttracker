@@ -401,20 +401,26 @@ describe('computeWarmupWeights', () => {
     expect(computeWarmupWeights(0, 'bodyweight')).toEqual([])
   })
 
-  it('returns empty when working weight is below 10 kg', () => {
+  it('returns empty for dumbbell below 10 kg', () => {
     expect(computeWarmupWeights(5, 'dumbbell')).toEqual([])
-    expect(computeWarmupWeights(9.99, 'barbell')).toEqual([])
   })
 
-  it('returns one warmup in the 10–20 kg band', () => {
-    expect(computeWarmupWeights(15, 'barbell')).toEqual([7.5])
+  it('returns empty for barbell when total load is below 30 kg', () => {
+    // workingKg=4/side → total 28 kg → no warmup
+    expect(computeWarmupWeights(4, 'barbell')).toEqual([])
   })
 
-  it('returns two warmups in the 20–40 kg band', () => {
-    expect(computeWarmupWeights(25, 'barbell')).toEqual([12.5, 17.5])
+  it('returns two warmups for barbell in the 30–59 kg total band', () => {
+    // workingKg=12.5/side → total 45 → 2 warmups @ 50%/75% of per-side
+    expect(computeWarmupWeights(12.5, 'barbell')).toEqual([5, 7.5])
+    // workingKg=17.5/side → total 55 → 2 warmups
+    expect(computeWarmupWeights(17.5, 'barbell')).toEqual([7.5, 12.5])
   })
 
-  it('returns three warmups at 40 kg and above', () => {
+  it('returns three warmups for barbell at 60 kg total and above', () => {
+    // workingKg=20/side → total 60 → 3 warmups @ 40%/60%/80% of per-side
+    // 20*0.4=8 → floor 2.5 → 7.5; 20*0.6=12 → 10; 20*0.8=16 → 15
+    expect(computeWarmupWeights(20, 'barbell')).toEqual([7.5, 10, 15])
     expect(computeWarmupWeights(50, 'barbell')).toEqual([20, 30, 40])
   })
 

@@ -11,6 +11,18 @@ export function computeWarmupWeights(
   equipmentType: EquipmentType,
 ): number[] {
   if (equipmentType === 'bodyweight') return []
+
+  // Barbell weight is stored per-side. The tier should reflect the
+  // actual load on the bar (bar + plates × 2), not the per-side number,
+  // otherwise a 17.5 kg/side OHP (= 55 kg) looks "tiny" and only gets
+  // one warmup. Dumbbell / machine still tier off the displayed value.
+  if (equipmentType === 'barbell') {
+    const totalKg = workingKg * 2 + 20
+    if (totalKg < 30) return []
+    const fractions = totalKg >= 60 ? [0.4, 0.6, 0.8] : [0.5, 0.75]
+    return fractions.map(f => Math.floor((workingKg * f) / 2.5) * 2.5)
+  }
+
   if (workingKg < 10) return []
 
   let fractions: number[]
