@@ -61,7 +61,7 @@ export function dotsScore(totalLiftedKg: number, bodyweightKg: number, gender: '
   return dotsCoeff(bodyweightKg, gender) * totalLiftedKg
 }
 
-const LIFT_NAMES = ['Bench Press', 'Squat', 'Over Head Press', 'Barbell Row'] as const
+const LIFT_NAMES = ['Bench Press', 'Back Squat', 'Over Head Press', 'Barbell Row'] as const
 type LiftName = typeof LIFT_NAMES[number]
 
 export interface StrengthScore {
