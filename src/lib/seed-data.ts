@@ -11,6 +11,7 @@ export interface SeedExercise {
   isCustom: boolean
   alternativeExerciseNames: string[]
   requiresSetupNote?: boolean
+  usesWarmup?: boolean
 }
 
 export interface SeedTemplateExercise {
@@ -42,7 +43,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["Push-Up", "Chest Fly Machine", "DB Shoulder Press"]
+    "alternativeExerciseNames": ["Push-Up", "Chest Fly Machine", "DB Shoulder Press"],
+    "usesWarmup": true
   },
   {
     "name": "DB Shoulder Press",
@@ -52,7 +54,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["Over Head Press", "Lateral Raises"]
+    "alternativeExerciseNames": ["Over Head Press", "Lateral Raises"],
+    "usesWarmup": true
   },
   {
     "name": "Dumbbell Romanian Deadlift",
@@ -62,7 +65,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["Dumbbell Lunges", "Squat"]
+    "alternativeExerciseNames": ["Dumbbell Lunges", "Squat"],
+    "usesWarmup": true
   },
   {
     "name": "Lat Pulldown",
@@ -102,7 +106,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["Dumbbell Lunges", "Dumbbell Romanian Deadlift"]
+    "alternativeExerciseNames": ["Dumbbell Lunges", "Dumbbell Romanian Deadlift"],
+    "usesWarmup": true
   },
   {
     "name": "Negative Pull Ups",
@@ -152,7 +157,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["DB Shoulder Press"]
+    "alternativeExerciseNames": ["DB Shoulder Press"],
+    "usesWarmup": true
   },
   {
     "name": "Barbell Row",
@@ -162,7 +168,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "weightDisplay": "per-side",
     "incrementKg": 2.5,
     "isCustom": false,
-    "alternativeExerciseNames": ["Inverted Row", "Lat Pulldown"]
+    "alternativeExerciseNames": ["Inverted Row", "Lat Pulldown"],
+    "usesWarmup": true
   },
   {
     "name": "Chest Fly Machine",

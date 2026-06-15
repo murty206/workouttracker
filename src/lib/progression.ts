@@ -414,7 +414,9 @@ export async function applyProgression(sessionId: number): Promise<void> {
       snapDirection,
     )
 
-    const nextWarmups = computeWarmupWeights(snappedWeight, exercise.equipmentType)
+    const nextWarmups = exercise.usesWarmup
+      ? computeWarmupWeights(snappedWeight, exercise.equipmentType)
+      : []
     await db.templateExercises.update(nextTe.id!, {
       plannedWeightKg: snappedWeight,
       warmupWeights: nextWarmups,
@@ -539,7 +541,9 @@ export async function carryForwardWeights(
     }
 
     if (te.plannedWeightKg === null) continue
-    const warmups = computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType)
+    const warmups = exercise.usesWarmup
+      ? computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType)
+      : []
     await db.templateExercises.update(nextTe.id!, {
       plannedWeightKg: te.plannedWeightKg,
       warmupWeights: warmups,

@@ -21,12 +21,13 @@ export async function seedIfEmpty(): Promise<void> {
     // Insert exercises
     const exerciseIds = new Map<string, number>()
     for (const ex of SEED_EXERCISES) {
-      const { alternativeExerciseNames, requiresSetupNote, ...rest } = ex
+      const { alternativeExerciseNames, requiresSetupNote, usesWarmup, ...rest } = ex
       const id = await db.exercises.add({
         ...rest,
         restSeconds: ex.equipmentType === 'barbell' ? 90 : 60,
         alternativeExerciseIds: [], // resolved below after all exercises are inserted
         requiresSetupNote: requiresSetupNote ?? false,
+        usesWarmup: usesWarmup ?? false,
       })
       exerciseIds.set(ex.name, id)
     }

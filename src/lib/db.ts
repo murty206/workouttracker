@@ -221,6 +221,34 @@ export class WorkoutDB extends Dexie {
         te.warmupWeights = fractions.map(f => Math.floor((workingKg * f) / 2.5) * 2.5)
       })
     })
+
+    this.version(13).stores({}).upgrade(async tx => {
+      // The spreadsheet only specifies warmups for the main compound lifts;
+      // applyProgression was auto-generating warmups for every non-bodyweight
+      // exercise instead, so accessories drifted away from the program intent
+      // starting Week 2. Add a per-exercise usesWarmup flag and clear the
+      // warmupWeights on existing accessory templates.
+      const WARMUP_LIFTS = new Set([
+        'Bench Press',
+        'Squat',
+        'Back Squat',
+        'Over Head Press',
+        'Barbell Row',
+        'DB Shoulder Press',
+        'Dumbbell Romanian Deadlift',
+      ])
+      const noWarmupIds = new Set<number>()
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        const usesWarmup = WARMUP_LIFTS.has(ex.name)
+        ex.usesWarmup = usesWarmup
+        if (!usesWarmup && ex.id !== undefined) noWarmupIds.add(ex.id)
+      })
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (noWarmupIds.has(te.exerciseId) && te.warmupWeights && te.warmupWeights.length > 0) {
+          te.warmupWeights = []
+        }
+      })
+    })
   }
 }
 
