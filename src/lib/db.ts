@@ -249,6 +249,22 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(14).stores({}).upgrade(async tx => {
+      // Cardio caps + steps now reflect real treadmill granularity (speed cap
+      // 5.0 km/h, incline cap 15%, speed step 0.2, incline step 1). Existing
+      // future templates may carry unreachable values from the old algorithm
+      // (e.g. 5.25 km/h, 7.5% incline). Snap them in place so the user can
+      // actually match the prescription on the belt.
+      await tx.table('templateExercises').toCollection().modify((te: TemplateExercise) => {
+        if (te.cardioSpeedKmh !== undefined && te.cardioSpeedKmh !== null && te.cardioSpeedKmh > 5.0) {
+          te.cardioSpeedKmh = 5.0
+        }
+        if (te.cardioInclinePct !== undefined && te.cardioInclinePct !== null) {
+          te.cardioInclinePct = Math.round(te.cardioInclinePct)
+        }
+      })
+    })
   }
 }
 
