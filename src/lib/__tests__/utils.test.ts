@@ -435,6 +435,15 @@ describe('computeWarmupWeights', () => {
     // 0.4 * 100 = 40; 0.6 * 100 = 60; 0.8 * 100 = 80
     expect(computeWarmupWeights(100, 'machine')).toEqual([40, 60, 80])
   })
+
+  it('honors barWeightKg override for barbell total-load calc', () => {
+    // Smith machine: bar=0. 22.5/side → total 45 → 2 warmups (was 65 → 3 with default 20).
+    expect(computeWarmupWeights(22.5, 'barbell', 0)).toEqual([10, 15])
+    // Smith at 5/side → total 10 → no warmup
+    expect(computeWarmupWeights(5, 'barbell', 0)).toEqual([])
+    // Olympic default (20) unchanged when barWeight omitted
+    expect(computeWarmupWeights(22.5, 'barbell')).toEqual([7.5, 12.5, 17.5])
+  })
 })
 
 // ─── Rest timer math ──────────────────────────────────────────────────────────
