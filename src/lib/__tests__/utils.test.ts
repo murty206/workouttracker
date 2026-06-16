@@ -778,31 +778,27 @@ describe('checkBodyweightRepPR', () => {
 describe('computeNextCardio — rotation', () => {
   const start = { durationMin: 30, inclinePct: 7, speedKmh: 5 }
 
-  it('W2 (incline week) bumps incline +0.5', () => {
+  it('W2 (incline week) bumps incline +1', () => {
     expect(computeNextCardio(start, 2, true, false))
-      .toEqual({ durationMin: 30, inclinePct: 7.5, speedKmh: 5 })
+      .toEqual({ durationMin: 30, inclinePct: 8, speedKmh: 5 })
   })
 
-  it('W3 (speed week) bumps speed +0.25', () => {
-    const w2 = { durationMin: 30, inclinePct: 7.5, speedKmh: 5 }
+  it('W3 (speed week) — speed already at cap → falls through to incline', () => {
+    // start.speedKmh is 5.0 (cap); nominal bump 5.0+0.2=5.2 > cap → no speed
+    // change → fall through to incline.
+    const w2 = { durationMin: 30, inclinePct: 8, speedKmh: 5 }
     expect(computeNextCardio(w2, 3, true, false))
-      .toEqual({ durationMin: 30, inclinePct: 7.5, speedKmh: 5.25 })
+      .toEqual({ durationMin: 30, inclinePct: 9, speedKmh: 5 })
   })
 
-  it('falls through to other axis when current axis is capped', () => {
-    // Speed already at cap; W3 is speed week → falls through to incline
-    const capped = { durationMin: 30, inclinePct: 8, speedKmh: 5.5 }
-    expect(computeNextCardio(capped, 3, true, false))
-      .toEqual({ durationMin: 30, inclinePct: 8.5, speedKmh: 5.5 })
-
-    // Incline at cap; W2 is incline week → falls through to speed
-    const inclineCap = { durationMin: 30, inclinePct: 12, speedKmh: 5 }
+  it('incline-at-cap, W2 incline week → falls through to speed (but cap blocks that too)', () => {
+    const inclineCap = { durationMin: 30, inclinePct: 15, speedKmh: 5 }
     expect(computeNextCardio(inclineCap, 2, true, false))
-      .toEqual({ durationMin: 30, inclinePct: 12, speedKmh: 5.25 })
+      .toEqual({ durationMin: 30, inclinePct: 15, speedKmh: 5 })
   })
 
   it('stays at current values when both axes are capped', () => {
-    const bothCap = { durationMin: 30, inclinePct: 12, speedKmh: 5.5 }
+    const bothCap = { durationMin: 30, inclinePct: 15, speedKmh: 5 }
     expect(computeNextCardio(bothCap, 2, true, false)).toEqual(bothCap)
     expect(computeNextCardio(bothCap, 3, true, false)).toEqual(bothCap)
   })
@@ -813,30 +809,33 @@ describe('computeNextCardio — rotation', () => {
   })
 
   it('SAME when next week is the deload', () => {
-    const w12 = { durationMin: 30, inclinePct: 10, speedKmh: 5.5 }
+    const w12 = { durationMin: 30, inclinePct: 14, speedKmh: 5 }
     expect(computeNextCardio(w12, 13, true, true)).toEqual(w12)
   })
 
-  it('12-week fall-through projection matches design', () => {
+  it('12-week projection: incline climbs every week (speed cap = start)', () => {
+    // With speed cap = start = 5.0, every speed week falls through to
+    // incline, so incline effectively bumps +1 every week until cap = 15.
     let p = { durationMin: 30, inclinePct: 7, speedKmh: 5 }
-    p = computeNextCardio(p, 2, true, false) // W2 incline
-    expect(p).toEqual({ durationMin: 30, inclinePct: 7.5, speedKmh: 5 })
-    p = computeNextCardio(p, 3, true, false) // W3 speed
-    expect(p).toEqual({ durationMin: 30, inclinePct: 7.5, speedKmh: 5.25 })
-    p = computeNextCardio(p, 4, true, false) // W4 incline
-    expect(p).toEqual({ durationMin: 30, inclinePct: 8, speedKmh: 5.25 })
-    p = computeNextCardio(p, 5, true, false) // W5 speed → cap
-    expect(p).toEqual({ durationMin: 30, inclinePct: 8, speedKmh: 5.5 })
-    p = computeNextCardio(p, 6, true, false) // W6 incline
-    expect(p).toEqual({ durationMin: 30, inclinePct: 8.5, speedKmh: 5.5 })
-    p = computeNextCardio(p, 7, true, false) // W7 speed (cap) → fall through incline
-    expect(p).toEqual({ durationMin: 30, inclinePct: 9, speedKmh: 5.5 })
+    p = computeNextCardio(p, 2, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 8, speedKmh: 5 })
+    p = computeNextCardio(p, 3, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 9, speedKmh: 5 })
+    p = computeNextCardio(p, 4, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 10, speedKmh: 5 })
+    p = computeNextCardio(p, 5, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 11, speedKmh: 5 })
+    p = computeNextCardio(p, 6, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 12, speedKmh: 5 })
+    p = computeNextCardio(p, 7, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 13, speedKmh: 5 })
     p = computeNextCardio(p, 8, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 14, speedKmh: 5 })
     p = computeNextCardio(p, 9, true, false)
+    expect(p).toEqual({ durationMin: 30, inclinePct: 15, speedKmh: 5 })
+    // Now incline is capped; W10 (incline week) bumps nothing.
     p = computeNextCardio(p, 10, true, false)
-    p = computeNextCardio(p, 11, true, false)
-    p = computeNextCardio(p, 12, true, false)
-    expect(p).toEqual({ durationMin: 30, inclinePct: 11.5, speedKmh: 5.5 })
+    expect(p).toEqual({ durationMin: 30, inclinePct: 15, speedKmh: 5 })
   })
 })
 

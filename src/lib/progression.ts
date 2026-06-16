@@ -170,10 +170,15 @@ export function snapToAvailable(
 
 // ─── Cardio progression ───────────────────────────────────────────────────────
 
-export const CARDIO_INCLINE_CAP_PCT = 12
-export const CARDIO_SPEED_CAP_KMH = 5.5
-export const CARDIO_INCLINE_STEP_PCT = 0.5
-export const CARDIO_SPEED_STEP_KMH = 0.25
+// Caps + steps reflect real treadmill granularity: most consumer belts only
+// accept 1% incline steps and 0.1 km/h speed steps. Speed is capped at 5 km/h
+// (with a 0.2 step that cannot land inside the cap) to keep tibialis anterior
+// load manageable on incline weeks; progression then runs almost entirely on
+// incline via the fall-through.
+export const CARDIO_INCLINE_CAP_PCT = 15
+export const CARDIO_SPEED_CAP_KMH = 5.0
+export const CARDIO_INCLINE_STEP_PCT = 1
+export const CARDIO_SPEED_STEP_KMH = 0.2
 
 export interface CardioPrescription {
   durationMin: number
@@ -181,10 +186,10 @@ export interface CardioPrescription {
   speedKmh: number
 }
 
-// Round to two decimals to absorb 0.1+0.2-style float drift; speed steps
-// of 0.25 need two-decimal precision, incline steps of 0.5 fit too.
+// Round to one decimal to absorb float drift; speed steps of 0.2 and
+// incline steps of 1 both fit comfortably.
 function r2(n: number): number {
-  return Math.round(n * 100) / 100
+  return Math.round(n * 10) / 10
 }
 
 // Apply one rotation step from `current` for week `nextWeekN`.
