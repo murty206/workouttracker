@@ -9,6 +9,7 @@ import type { EquipmentType, ProgressionResult } from '@/types'
 export function computeWarmupWeights(
   workingKg: number,
   equipmentType: EquipmentType,
+  barWeightKg: number = 20,
 ): number[] {
   if (equipmentType === 'bodyweight') return []
 
@@ -16,8 +17,9 @@ export function computeWarmupWeights(
   // actual load on the bar (bar + plates × 2), not the per-side number,
   // otherwise a 17.5 kg/side OHP (= 55 kg) looks "tiny" and only gets
   // one warmup. Dumbbell / machine still tier off the displayed value.
+  // barWeightKg overrides the Olympic default — Smith machine = 0.
   if (equipmentType === 'barbell') {
-    const totalKg = workingKg * 2 + 20
+    const totalKg = workingKg * 2 + barWeightKg
     if (totalKg < 30) return []
     const fractions = totalKg >= 60 ? [0.4, 0.6, 0.8] : [0.5, 0.75]
     return fractions.map(f => Math.floor((workingKg * f) / 2.5) * 2.5)
@@ -420,7 +422,7 @@ export async function applyProgression(sessionId: number): Promise<void> {
     )
 
     const nextWarmups = exercise.usesWarmup
-      ? computeWarmupWeights(snappedWeight, exercise.equipmentType)
+      ? computeWarmupWeights(snappedWeight, exercise.equipmentType, exercise.barWeightKg)
       : []
     await db.templateExercises.update(nextTe.id!, {
       plannedWeightKg: snappedWeight,
@@ -547,7 +549,7 @@ export async function carryForwardWeights(
 
     if (te.plannedWeightKg === null) continue
     const warmups = exercise.usesWarmup
-      ? computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType)
+      ? computeWarmupWeights(te.plannedWeightKg, exercise.equipmentType, exercise.barWeightKg)
       : []
     await db.templateExercises.update(nextTe.id!, {
       plannedWeightKg: te.plannedWeightKg,

@@ -265,6 +265,21 @@ export class WorkoutDB extends Dexie {
         }
       })
     })
+
+    this.version(15).stores({}).upgrade(async tx => {
+      // Bar weight is no longer hardcoded — score.ts and warmup formulas now
+      // read exercise.barWeightKg (default 20). Set Squat to 0 since the user
+      // performs it on a Smith machine (counterbalanced bar). Other barbell
+      // lifts stay at the Olympic default.
+      const SMITH_NAMES = new Set(['Squat', 'Back Squat'])
+      await tx.table('exercises').toCollection().modify((ex: Exercise) => {
+        if (ex.equipmentType !== 'barbell') return
+        if (SMITH_NAMES.has(ex.name)) {
+          ex.barWeightKg = 0
+        }
+        // Leave other barbell exercises unset; they default to 20 in code.
+      })
+    })
   }
 }
 

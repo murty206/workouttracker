@@ -12,6 +12,7 @@ export interface SeedExercise {
   alternativeExerciseNames: string[]
   requiresSetupNote?: boolean
   usesWarmup?: boolean
+  barWeightKg?: number
 }
 
 export interface SeedTemplateExercise {
@@ -107,7 +108,8 @@ export const SEED_EXERCISES: SeedExercise[] = [
     "incrementKg": 2.5,
     "isCustom": false,
     "alternativeExerciseNames": ["Dumbbell Lunges", "Dumbbell Romanian Deadlift"],
-    "usesWarmup": true
+    "usesWarmup": true,
+    "barWeightKg": 0
   },
   {
     "name": "Negative Pull Ups",

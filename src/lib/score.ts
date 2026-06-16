@@ -98,8 +98,11 @@ export async function strengthScore(gender: 'male' | 'female', bodyweightKg: num
       continue
     }
 
-    // Barbell: total lifted = e1rm per side × 2 + 20 kg bar
-    const totalLifted = e1rm * 2 + 20
+    // Barbell: total lifted = e1rm per side × 2 + bar weight. Default 20 kg
+    // (Olympic), but Smith machine and short fixed bars override via
+    // exercise.barWeightKg.
+    const bar = exercise.barWeightKg ?? 20
+    const totalLifted = e1rm * 2 + bar
     const dots = dotsScore(totalLifted, bodyweightKg, gender)
     breakdown[name] = Math.round(dots * 10) / 10
     total += dots

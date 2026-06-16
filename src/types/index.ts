@@ -35,6 +35,11 @@ export interface Exercise {
   // Row, DB Shoulder Press, Dumbbell Romanian Deadlift); accessories run
   // straight into the working sets. Undefined treated as false.
   usesWarmup?: boolean
+  // Override for the empty-bar weight used when computing total load for
+  // barbell exercises. Defaults to 20 (standard Olympic bar). Set to 0 for
+  // Smith machine (counterbalanced bar). Affects strength score and warmup
+  // tier; per-side log values remain unchanged.
+  barWeightKg?: number
 }
 
 export interface UserPref {
